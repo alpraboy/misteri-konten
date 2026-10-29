@@ -30,31 +30,46 @@ def _gemini(prompt, temperature=0.9):
         },
     }
     last = None
-    for model in models:
-        for attempt in range(3):
-            r = requests.post(
-                GEMINI_URL.format(model=model),
-                headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-                json=body, timeout=120,
-            )
-            if r.status_code == 404:
-                last = r.text[:300]
-                print(f"Model {model} tidak tersedia (404), coba model berikutnya...")
-                break
-            if r.status_code in (429, 500, 502, 503):
-                last = r.text[:300]
-                print(f"Model {model} sibuk ({r.status_code}), menunggu...")
-                time.sleep(8 * (attempt + 1))
-                continue
-            if r.status_code >= 400:
-                print(r.text[:500])
-            r.raise_for_status()
-            parts = r.json()["candidates"][0]["content"]["parts"]
-            text = "".join(p.get("text", "") for p in parts)
-            text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
-            print(f"Model dipakai: {model}")
-            return json.loads(text)
-    raise RuntimeError(f"Semua model Gemini gagal. Respons terakhir: {last}")
+    for round_ in range(3):  # ulangi seluruh daftar model bila semuanya sedang sibuk
+        for model in models:
+            for attempt in range(2):
+                try:
+                    r = requests.post(
+                        GEMINI_URL.format(model=model),
+                        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                        json=body, timeout=(15, 150),
+                    )
+                except (requests.Timeout, requests.ConnectionError) as e:
+                    last = f"{type(e).__name__}"
+                    print(f"Model {model} timeout/koneksi putus, coba lagi...")
+                    time.sleep(5)
+                    continue
+                if r.status_code == 404:
+                    last = r.text[:300]
+                    print(f"Model {model} tidak tersedia (404), coba model berikutnya...")
+                    break
+                if r.status_code in (429, 500, 502, 503, 504):
+                    last = f"{r.status_code} {r.text[:200]}"
+                    print(f"Model {model} sibuk ({r.status_code}), menunggu...")
+                    time.sleep(6 * (attempt + 1))
+                    continue
+                if r.status_code >= 400:
+                    print(r.text[:500])
+                r.raise_for_status()
+                try:
+                    parts = r.json()["candidates"][0]["content"]["parts"]
+                    text = "".join(p.get("text", "") for p in parts)
+                    text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
+                    data = json.loads(text)
+                except (KeyError, IndexError, ValueError) as e:
+                    last = f"respons tidak valid: {e}"
+                    print(f"Model {model} mengembalikan respons tak valid, coba lagi...")
+                    continue
+                print(f"Model dipakai: {model}")
+                return data
+        print(f"Putaran {round_ + 1} gagal semua; menunggu sebelum mengulang...")
+        time.sleep(20)
+    raise RuntimeError(f"Semua model Gemini gagal. Terakhir: {last}")
 
 
 def _pick_topic(theme, cfg, topic):
