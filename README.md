@@ -65,3 +65,10 @@ Tokoh dibuat per cerita, gayanya sama. Typography: judul "stiker komik" + subtit
 
 ### Pemulihan saat layanan ilustrasi bermasalah
 Jika API ilustrasi membalas HTTP 5xx atau koneksi berulang kali gagal, v6 menghentikan percobaan berulang dan membuat kartu visual cinematic lokal agar render dapat berlanjut. Kartu ini bukan ilustrasi AI spesifik; `verify.md` dan `script.json` menandai adegan fallback agar kreator bisa menggantinya sebelum upload. Untuk gambar AI sesuai prompt, jalankan ulang ketika layanan ilustrasi pulih atau gunakan penyedia gambar lain.
+
+
+## V6.2 — tanpa visual lokal
+- Sistem tidak lagi membuat kartu/placeholder visual lokal.
+- Jika ilustrasi AI gagal dan `PIXABAY_API_KEY` atau `PEXELS_API_KEY` tersedia, adegan dialihkan ke stock footage.
+- Jika ilustrasi AI gagal dan tidak ada API footage, workflow berhenti dengan pesan yang jelas, bukan menghasilkan visual pengganti.
+- Tambahkan secret di GitHub: `POLLINATIONS_API_KEY` (opsional, untuk ilustrasi AI ber-key), serta minimal salah satu `PIXABAY_API_KEY` atau `PEXELS_API_KEY` sebagai cadangan footage.

@@ -59,14 +59,15 @@ def main():
 
     print("== 3/6 Ilustrasi ==")
     failed = illustrator.generate_all(script, cfg, work)
-    for i in failed:  # kompatibilitas dengan provider lama
+    for i in failed:
         if not has_footage_key:
-            raise RuntimeError(f"Ilustrasi adegan {i} gagal dan tidak ada key footage sebagai cadangan.")
+            raise RuntimeError(
+                f"Ilustrasi AI adegan {i} gagal dan tidak ada API footage sebagai cadangan. "
+                "Tambahkan secret PIXABAY_API_KEY atau PEXELS_API_KEY di GitHub Actions. "
+                "Tidak ada visual lokal yang akan dibuat."
+            )
         script["scenes"][i]["visual"] = "footage"
-        print(f"Adegan {i} dialihkan ke footage.")
-    fallback_count = sum(1 for sc in script["scenes"] if sc.get("image_fallback"))
-    if fallback_count:
-        print(f"PERINGATAN: {fallback_count} adegan memakai kartu visual cinematic lokal, bukan ilustrasi AI spesifik. Render tetap berjalan; periksa sebelum upload.")
+        print(f"Adegan {i} dialihkan ke stock footage karena ilustrasi AI gagal.")
 
     print("== 4/6 Footage ==")
     credits = footage.fetch_all(script, cfg, work)
@@ -97,7 +98,7 @@ def main():
     if fallback_scenes:
         verify.append(f"PERINGATAN: adegan dengan fallback visual lokal (bukan gambar AI spesifik): {', '.join(map(str, fallback_scenes))}. Ganti visual ini sebelum upload bila membutuhkan ilustrasi literal.\n")
     else:
-        verify.append("Tidak ada fallback visual lokal yang ditandai.\n")
+        verify.append("Visual lokal dinonaktifkan. Adegan menggunakan AI image atau stock footage; kegagalan keduanya menghentikan render.\n")
     verify.append("## Status validasi otomatis\n")
     verify.append("Validasi otomatis memeriksa keberadaan sumber, konsistensi metadata, dan kemiripan kata kunci; ini BUKAN verifikasi kebenaran fakta. Klaim faktual tetap wajib diperiksa manusia pada sumber asli.\n")
     source_text = (script.get("source_evidence") or "").lower()

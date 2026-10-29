@@ -136,7 +136,11 @@ def _local_cinematic_fallback(prompt: str, dest: Path, seed: int) -> Path:
 
 
 def generate_all(script, cfg, work: Path):
-    """Fill sc['image']; on provider outage, use local cinematic cards instead of aborting."""
+    """Generate AI images only. Failed scenes are returned to main for footage fallback.
+
+    No local placeholder images are created: the pipeline either uses a real AI image,
+    routes the scene to stock footage, or stops with a clear error.
+    """
     global REMOTE_BROKEN
     work.mkdir(parents=True, exist_ok=True)
     seed = random.randint(1, 999999)
@@ -146,14 +150,14 @@ def generate_all(script, cfg, work: Path):
         if sc["visual"] != "illustration":
             continue
         prompt = build_prompt(script, cfg, sc)
-        print(f"Ilustrasi adegan {i}: {sc['image_prompt'][:80]}")
+        print(f"Ilustrasi AI adegan {i}: {sc['image_prompt'][:80]}")
         path = _fetch(prompt, seed + i, work / f"img{i:02d}")
         if path:
             sc["image"] = str(path)
             sc["image_fallback"] = False
         else:
-            fallback = _local_cinematic_fallback(prompt, work / f"fallback{i:02d}.png", seed + i)
-            sc["image"] = str(fallback)
-            sc["image_fallback"] = True
-            print(f"  ! API ilustrasi tidak tersedia; memakai fallback cinematic lokal: {fallback}")
+            sc.pop("image", None)
+            sc["image_fallback"] = False
+            failed.append(i)
+            print(f"  ! Ilustrasi AI adegan {i} gagal; tidak membuat visual lokal.")
     return failed
