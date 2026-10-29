@@ -39,6 +39,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
           THEME: ${{ inputs.theme || 'sejarah' }}
           TOPIC: ${{ inputs.topic }}
         run: python src/main.py --theme "$THEME" --topic "$TOPIC"
