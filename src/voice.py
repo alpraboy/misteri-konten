@@ -6,7 +6,7 @@ import edge_tts
 
 from util import run, duration
 
-PAD = 0.20  # jeda di akhir tiap adegan (detik)
+PAD = 0.48  # jeda alami antarscene agar narasi punya ruang bernapas
 
 
 async def _tts(text, voice, rate, mp3_path):

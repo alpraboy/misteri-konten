@@ -44,12 +44,8 @@ def main():
     print("== 2/6 Suara ==")
     rate = cfg["rate"]
     narration = voice.synthesize(script, cfg, work, rate)
-    if script["total_duration"] > 61:  # terlalu panjang -> percepat suara agar muat ~58 detik
-        cur = 1 + int(rate.replace("%", "")) / 100
-        new = min(cur * script["total_duration"] / 58.0, 1.30)
-        rate = f"{round((new - 1) * 100):+d}%"
-        print(f"Narasi {script['total_duration']:.1f} dtk > 61 dtk -> ulang suara dengan rate {rate}")
-        narration = voice.synthesize(script, cfg, work, rate)
+    if script["total_duration"] > 61:
+        print("Catatan: narasi lebih dari 61 detik; tidak dipercepat otomatis agar tetap nyaman didengar.")
 
     has_footage_key = bool(os.environ.get("PIXABAY_API_KEY") or os.environ.get("PEXELS_API_KEY"))
     if not has_footage_key:  # tanpa key footage: semua adegan jadi ilustrasi
@@ -69,12 +65,12 @@ def main():
     print("== 4/6 Footage ==")
     credits = footage.fetch_all(script, cfg, work)
 
-    print("== 5/6 Typography, efek & suara ==")
+    print("== 5/6 Cinematic typography & sound design ==")
     editor.plan_shots(script)
-    impacts = captions.impact_events(script)
+    impacts = []  # V5: tidak memakai impact-word atau SFX agresif
     captions.build_ass(script, cfg, work / "captions.ass")
-    fxp = fx.make_overlays(work)
-    sfx = fx.build_sfx(editor.sfx_events(script, impacts), script["total_duration"], work / "sfx.wav")
+    fxp = {"overlay": str((work / "overlay.png").resolve()), "speed_a": str((work / "speed_a.png").resolve()), "speed_b": str((work / "speed_b.png").resolve())}
+    sfx = ""  # V5: sound effect dinonaktifkan; narasi + musik lembut saja
 
     print("== 6/6 Render ==")
     video = out_dir / "video.mp4"

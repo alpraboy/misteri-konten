@@ -1,53 +1,11 @@
-"""Typography bergaya komik: judul 'stiker' yang membanting masuk + subtitle kata-per-kata
-dengan efek pop (overshoot) dan kata aktif berwarna aksen. Format ASS."""
-
+"""Cinematic documentary typography: restrained title cards and stable readable captions."""
 import re
 
 W, H = 1080, 1920
-CHUNK = 3            # jumlah kata per tampilan
-CAP_Y = 1360         # posisi vertikal subtitle
-TITLE_Y = 300        # posisi vertikal teks judul (stiker)
-IMPACT_Y = 780       # posisi vertikal kata raksasa
+CHUNK = 5
+CAP_Y = 1510
+TITLE_Y = 310
 WHITE = "&H00FFFFFF&"
-
-
-def _norm(w):
-    return re.sub(r"[^\w]", "", w.lower())
-
-
-def impact_events(script):
-    """Cari waktu ucap kata raksasa tiap adegan. Kembalikan list (detik, TEKS)."""
-    out = []
-    for sc in script["scenes"]:
-        target = _norm(sc.get("impact_word", "") or "")
-        if not target:
-            continue
-        for w in sc["words"]:
-            if _norm(w["text"]) == target:
-                out.append((w["start"], target.upper()))
-                break
-    return out
-
-
-def _impact_lines(t, text, size):
-    """Kata raksasa: 4 bingkai getar singkat (besar -> normal) lalu bertahan & memudar."""
-    jitter = [(-16, 10, 210), (14, -12, 180), (-9, 7, 150), (5, -4, 120)]
-    sign = -4 if int(t * 10) % 2 == 0 else 4
-    lines = []
-    for k, (dx, dy, sc) in enumerate(jitter):
-        a = t + 0.05 * k
-        lines.append(
-            f"Dialogue: 3,{_t(a)},{_t(a + 0.05)},Impact,,0,0,0,,"
-            f"{{\\an5\\pos({W // 2 + dx},{IMPACT_Y + dy})\\frz{sign}\\fs{size}"
-            f"\\fscx{sc}\\fscy{sc}}}{text}"
-        )
-    a = t + 0.20
-    lines.append(
-        f"Dialogue: 3,{_t(a)},{_t(a + 1.0)},Impact,,0,0,0,,"
-        f"{{\\an5\\pos({W // 2},{IMPACT_Y})\\frz{sign}\\fs{size}"
-        f"\\t(0,1000,\\fscx106\\fscy106)\\fad(0,180)}}{text}"
-    )
-    return lines
 
 
 def _t(sec):
@@ -59,7 +17,7 @@ def _t(sec):
 
 
 def _esc(text):
-    return text.replace("\\", "").replace("{", "(").replace("}", ")")
+    return str(text).replace("\\", "").replace("{", "(").replace("}", ")").replace("\n", " ")
 
 
 def _fmt(word, upper):
@@ -68,76 +26,99 @@ def _fmt(word, upper):
 
 
 def build_ass(script, cfg, path):
+    """Create subtle titles, clean 1-line/2-line caption groups and a quiet end card."""
     st = cfg["style"]
     font, size, accent = st["font"], st["size"], st["color"]
     upper = st.get("uppercase", False)
+    title_size = st.get("title_size", 60)
 
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}
 PlayResY: {H}
-WrapStyle: 0
+WrapStyle: 2
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Cap,{font},{size},{WHITE},{WHITE},&H00000000,&H00000000,1,0,0,0,100,100,1,0,1,9,4,5,70,70,60,1
-Style: Impact,{font},120,{accent},{accent},&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,14,8,5,40,40,40,1
-Style: Title,{font},{st['title_size']},&H00000000,&H00000000,{accent},{accent},1,0,0,0,100,100,2,0,3,18,0,5,90,90,60,1
+Style: Cap,{font},{size},{WHITE},{WHITE},&H00101010,&H78000000,0,0,0,0,100,100,0,0,1,4,1,2,90,90,100,1
+Style: Title,{font},{title_size},&H00FFFFFF,&H00FFFFFF,{accent},&H90000000,1,0,0,0,100,100,1,0,1,2,2,8,100,100,70,1
+Style: Brand,Montserrat,28,&H00FFFFFF,&H00FFFFFF,{accent},&H90000000,1,0,0,0,100,100,2,0,1,1,1,7,68,68,62,1
+Style: EndCard,{font},54,&H00FFFFFF,&H00FFFFFF,{accent},&H90000000,1,0,0,0,100,100,1,0,1,3,2,5,90,90,80,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
 """
     lines = []
+    total = float(script.get("total_duration", 0))
+    title = _esc(script.get("title", "Misteri yang Belum Terjawab"))
 
-    # 1) Judul 'stiker komik': membanting masuk (besar -> normal), miring, lalu memudar
-    for k, sc in enumerate(script["scenes"]):
-        text = sc.get("onscreen", "").strip()
-        if not text:
-            continue
-        start = sc["start"] + 0.12
-        end = sc["start"] + min(sc["duration"] - 0.2, 3.2)
-        if end - start < 0.8:
-            continue
-        tilt = -3 if k % 2 == 0 else 3
-        slam = "\\fscx165\\fscy165\\t(0,170,\\fscx100\\fscy100)"
+    # Small brand marker persists throughout; no bouncing or flashing.
+    if total > 1:
         lines.append(
-            f"Dialogue: 2,{_t(start)},{_t(end)},Title,,0,0,0,,"
-            f"{{\\an5\\pos({W // 2},{TITLE_Y})\\frz{tilt}{slam}\\fad(0,220)}}{_fmt(text, True)}"
+            f"Dialogue: 0,{_t(0)},{_t(max(total - 0.4, 0.5))},Brand,,0,0,0,,"
+            f"{{\\an7\\fad(500,400)\\alpha&H18&}}AGEN MISTERI"
         )
 
-    # 2) Subtitle kata-per-kata: kata aktif beraksen + pop dengan overshoot
-    for sc in script["scenes"]:
-        words = sc["words"]
+    # One quiet opening title, held briefly and faded away.
+    first_scene = script["scenes"][0] if script.get("scenes") else {}
+    open_end = min(max(float(first_scene.get("duration", 2.6)) - 0.25, 1.8), 3.0)
+    lines.append(
+        f"Dialogue: 2,{_t(0.25)},{_t(open_end)},Title,,0,0,0,,"
+        f"{{\\an8\\pos({W // 2},{TITLE_Y})\\fad(450,650)}}{title}"
+    )
+
+    # Per-scene labels are optional, restrained and fade rather than slam in.
+    for scene_index, sc in enumerate(script.get("scenes", [])):
+        if scene_index == 0:
+            continue  # opening title already introduces the story; avoid stacking labels
+        text = _esc(sc.get("onscreen", "")).strip()
+        if not text:
+            continue
+        start = float(sc["start"]) + 0.35
+        end = min(float(sc["start"]) + float(sc["duration"]) - 0.25, start + 2.8)
+        if end - start >= 0.7:
+            lines.append(
+                f"Dialogue: 2,{_t(start)},{_t(end)},Title,,0,0,0,,"
+                f"{{\\an8\\pos({W // 2},{TITLE_Y})\\fad(300,450)}}{_fmt(text, upper)}"
+            )
+
+    # Stable grouped subtitles: highlight is static for each word, no scale pop/jitter.
+    for sc in script.get("scenes", []):
+        words = sc.get("words", [])
         for c in range(0, len(words), CHUNK):
             chunk = words[c:c + CHUNK]
-            nxt = words[c + CHUNK]["start"] if c + CHUNK < len(words) else None
             for j, w in enumerate(chunk):
-                start = w["start"]
+                start = float(w["start"])
                 if j + 1 < len(chunk):
-                    end = chunk[j + 1]["start"]
+                    end = float(chunk[j + 1]["start"])
+                elif c + CHUNK < len(words):
+                    end = float(words[c + CHUNK]["start"])
                 else:
-                    end = nxt if nxt is not None else w["end"] + 0.15
-                if end - start < 0.05:
+                    end = float(w.get("end", start + 0.3)) + 0.12
+                if end - start < 0.04:
                     continue
                 parts = []
                 for kk, cw in enumerate(chunk):
                     tok = _fmt(cw["text"], upper)
                     if kk == j:
-                        pop = "\\fscx70\\fscy70\\t(0,80,\\fscx124\\fscy124)\\t(80,170,\\fscx110\\fscy110)"
-                        parts.append(f"{{\\c{accent}{pop}}}{tok}{{\\r}}")
+                        parts.append(f"{{\\c{accent}}}{tok}{{\\c{WHITE}}}")
                     else:
                         parts.append(tok)
+                caption = " ".join(parts)
                 lines.append(
                     f"Dialogue: 1,{_t(start)},{_t(end)},Cap,,0,0,0,,"
-                    f"{{\\an5\\pos({W // 2},{CAP_Y})}}{' '.join(parts)}"
+                    f"{{\\an2\\pos({W // 2},{CAP_Y})\\fad(70,70)}}{caption}"
                 )
 
-    # 3) Kata raksasa di tengah layar pada momen penting
-    for t, text in impact_events(script):
-        size = max(90, min(210, int(960 / (0.62 * max(len(text), 1)))))
-        lines += _impact_lines(t, text, size)
+    # Minimal closing card; only appears if the final scene is long enough.
+    if total > 3.5:
+        end_start = max(total - 1.65, 0)
+        lines.append(
+            f"Dialogue: 3,{_t(end_start)},{_t(total)},EndCard,,0,0,0,,"
+            f"{{\\an5\\pos({W // 2},{H // 2})\\fad(350,350)}}TERUS TELUSURI MISTERINYA"
+        )
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(header + "\n".join(lines) + "\n")
-    print(f"Subtitle: {len(lines)} baris -> {path}")
+    print(f"Subtitle cinematic: {len(lines)} baris -> {path}")

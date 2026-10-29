@@ -5,7 +5,7 @@ sejarah:
   label: "Sejarah Misteri"
   source: wikipedia            # fakta diambil dari Wikipedia agar tidak mengarang
   voice: id-ID-ArdiNeural
-  rate: "-3%"
+  rate: "-10%"
   tone: >
     Narator dokumenter yang tenang dan berwibawa. Fokus pada fakta sejarah yang
     belum terjawab, teori yang beredar, dan apa yang masih menjadi tanda tanya.
@@ -27,7 +27,7 @@ cerita:
   label: "Cerita Misteri"
   source: none                 # fiksi / legenda, wajib diberi label di caption
   voice: id-ID-ArdiNeural
-  rate: "-3%"
+  rate: "-10%"
   tone: >
     Pencerita horor-misteri yang pelan dan menegangkan. Bangun suasana, beri
     plot twist di akhir. Boleh legenda/cerita rakyat atau cerita orisinal.
@@ -41,7 +41,7 @@ cerita:
     color: "&H003C14DC&"       # aksen merah darah
     accent_prompt: "crimson red"
     uppercase: true
-    flicker: true              # cahaya berkedip tipis
+    flicker: false             # tanpa kedipan agar nyaman ditonton
     grade: "eq=contrast=1.08:brightness=-0.03,vignette=PI/3.2"
   fallback_keywords: ["dark foggy forest night", "abandoned house night", "candle dark room", "moon clouds night"]
 
@@ -49,7 +49,7 @@ berita:
   label: "Berita Misteri"
   source: news                 # judul dari Google News RSS, bukan karangan model
   voice: id-ID-GadisNeural
-  rate: "+3%"
+  rate: "-6%"
   tone: >
     Pembawa berita yang lugas dan netral. Pakai kata "dilaporkan", "menurut
     pemberitaan", "belum dapat dipastikan". Jangan menuduh orang tertentu.

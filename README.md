@@ -1,4 +1,4 @@
-# Agen Konten Misteri (Sejarah / Cerita / Berita)
+# Agen Misteri Cinematic v5 (Sejarah / Cerita / Berita)
 
 Pipeline video vertikal 60 detik yang berjalan penuh di GitHub Actions.
 Upload ke YouTube/TikTok dilakukan manual oleh Anda.
@@ -31,10 +31,23 @@ Setelah selesai, unduh **Artifacts** di bagian bawah halaman run.
 - Selalu baca `verify.md` sebelum upload, terutama tema sejarah & berita.
 - Tema cerita adalah fiksi/legenda; disclaimer otomatis masuk caption.
 
-## Gaya visual (v2)
+## Gaya visual (fondasi v2)
 Komik tinta hitam-putih + satu warna aksen per tema. Tiap video: ilustrasi AI per adegan
 (Pollinations, tanpa key), maksimal 2 adegan footage Pixabay sebagai variasi.
 Tokoh dibuat per cerita, gayanya sama. Typography: judul "stiker komik" + subtitle pop beraksen.
 - Batas anonim Pollinations ~1 gambar / 15 detik, jadi tahap ilustrasi memakan beberapa menit.
 - Bila ilustrasi gagal, adegan itu otomatis memakai footage (butuh PIXABAY_API_KEY).
 - Opsional: secret `POLLINATIONS_API_KEY` / `POLLINATIONS_MODEL` bila ingin mengatur model atau batas.
+
+## Gaya sinematik dokumenter (v5)
+- **A — Cinematic documentary:** komposisi bidikan punya fungsi (establishing wide, medium untuk aksi, close-up hanya untuk detail penting); gerakan kamera sangat halus dengan zoom/pan kecil, durasi bidikan lebih panjang.
+- **B — Visual mengikuti cerita:** prompt storyboard diarahkan untuk menggambarkan isi narasi secara spesifik. Setiap adegan menambahkan informasi visual baru, menjaga konsistensi palet, era, cuaca dan tokoh, serta memakai transisi dissolve yang tenang.
+- **C — Identitas Agen Misteri:** penanda brand kecil, judul pembuka sederhana, subtitle stabil tanpa efek memantul, dan penutup ringkas. Tipografi tidak lagi membanting atau bergetar.
+- Tidak ada whoosh/hit, kilatan putih, garis kecepatan, getaran kamera, atau noise film. Hanya narasi dan musik latar lembut (jika tersedia); musik otomatis diredam saat narasi.
+- Tempo suara dibuat lebih santai dan jeda antarscene diperpanjang. Jika video melewati 60 detik, jangan memaksa narasi dipercepat; rapikan naskah.
+- Gambar lebih baik bila memakai key gratis dari https://enter.pollinations.ai: simpan sebagai secret `POLLINATIONS_API_KEY` (model default `flux`).
+
+### Catatan V5
+- Subtitle/brand/title dirender melalui ASS. Pastikan font Montserrat dan DejaVu tersedia di runner.
+- Musik bersifat opsional. Jika folder `assets/music/` kosong, render menggunakan narasi saja.
+- Output belum dianggap teruji sampai satu render penuh berhasil di GitHub Actions; periksa Artifact, sinkronisasi subtitle, dan audio sebelum upload.

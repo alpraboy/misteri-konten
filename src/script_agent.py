@@ -143,23 +143,25 @@ def generate(theme, cfg, topic=""):
 
     prompt = f"""Kamu penulis skrip + storyboard video pendek vertikal (YouTube Shorts/TikTok) bertema {cfg['label']}.
 Gaya narasi: {cfg['tone']}
-Gaya visual: komik tinta hitam-putih (graphic novel) dengan satu warna aksen.
+Gaya visual: cinematic mystery documentary, graphic-novel illustration yang matang, hitam-putih/warna redup dengan satu aksen warna. Kamera dan komposisi harus terasa seperti dokumenter, bukan slideshow template.
 
 {source_note}
 
 {material}
 
 Aturan:
-- Total narasi 105-120 kata (JANGAN lebih dari 125; harus muat 55-60 detik), dibagi 8-10 adegan.
+- Total narasi 85-100 kata, dibagi 7-8 adegan. Utamakan kalimat jelas, jeda alami, dan tempo tenang; satu ide utama per adegan. Sisakan ruang bernapas; jangan memadatkan terlalu banyak informasi per kalimat.
 - Adegan 1 adalah HOOK 1-2 kalimat yang membuat orang berhenti scroll. Adegan terakhir: penutup/pertanyaan terbuka.
 - "character": buat SATU tokoh utama bila ceritanya butuh tokoh (deskripsi visual tetap, bahasa Inggris). Set "with_character": true pada adegan yang menampilkan tokoh itu.
 - Hampir semua adegan "visual": "illustration". Gunakan "footage" PALING BANYAK 2 adegan di tengah, hanya untuk suasana umum yang mudah dicari di stok video (mis. "foggy forest", "ocean waves", "night sky"); isi "keywords" 2 alternatif berbahasa Inggris. Adegan pertama dan terakhir harus illustration.
-- "impact_word": isi di 4-6 adegan saja (momen paling menegangkan/mengejutkan), kata persis seperti di narasi, tanpa tanda baca.
+- "impact_word": isi string kosong pada semua adegan; jangan gunakan teks raksasa yang mengganggu narasi.
 - Komposisi gambar harus SEDERHANA agar hasil AI tidak berantakan: satu subjek utama yang jelas, hindari kerumunan, hindari close-up tangan/wajah; lebih baik siluet, tokoh dari belakang, atau pemandangan/bangunan.
-- "image_prompt" harus konkret dan menggambarkan isi narasi adegan itu. Variasikan sudut kamera (close-up, wide shot, low angle, dari belakang/siluet) agar tidak monoton. Jangan ada teks atau huruf di dalam gambar.
+- "image_prompt" wajib menggambarkan tepat isi narasi adegan itu, bukan gambar misterius generik. Rancang urutan visual: establishing wide shot untuk lokasi, medium shot untuk aksi, close-up hanya untuk bukti/objek penting, lalu wide/quiet shot untuk penutup. Setiap adegan harus menambah informasi visual baru. Pertahankan palet, era, cuaca, dan desain tokoh yang konsisten. Jangan ada teks atau huruf di dalam gambar.
 - Jangan menggambarkan orang sungguhan secara spesifik; gunakan tokoh gambar/siluet anonim. Hindari gore dan kekerasan grafis, SARA, dan konten untuk anak.
-- "motion": pilih gerak kamera yang cocok (zoom_in untuk ketegangan, pan untuk memperlihatkan tempat, tilt untuk bangunan/langit); variasikan antar adegan.
+- "motion": gerak kamera harus sangat halus dan punya alasan. Gunakan zoom_in hanya saat mengungkap detail, zoom_out untuk memperlihatkan konteks, pan untuk lokasi lebar, tilt untuk bangunan/langit. Hindari gerak kamera pada tiap adegan secara berlebihan; variasikan dengan tenang.
 - Isi "claims_to_verify" dengan klaim faktual penting (nama, tanggal, angka).
+- "onscreen" opsional dan maksimal 3-4 kata; gunakan hanya untuk lokasi, tahun, atau konsep penting. Jangan mengulang narasi sebagai teks besar.
+- Rasa akhir: dokumenter sinematik yang elegan, misterius, mudah diikuti, tidak ramai, tanpa jumpscare visual.
 
 Balas HANYA JSON dengan bentuk:
 {SCHEMA}"""

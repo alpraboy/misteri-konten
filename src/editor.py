@@ -1,6 +1,4 @@
-"""Editor motion comic: tiap ilustrasi dipotong jadi beberapa bidikan (~2 detik) dengan
-getar kamera, kilatan putih, garis kecepatan; transisi xfade antar adegan; bingkai panel +
-halftone; subtitle ASS; efek suara + musik yang menurun saat narasi."""
+"""Cinematic documentary editor: slow motivated camera moves, gentle dissolves and clean narration-first mix."""
 import random
 from pathlib import Path
 
@@ -8,30 +6,27 @@ from util import run
 
 FPS = 30
 T = 0.25  # lama transisi antar adegan (detik)
-SHOT_LEN = 1.9  # target durasi satu bidikan (detik)
-TRANSITIONS = [
-    "zoomin", "wipeleft", "radial", "slideleft",
-    "pixelize", "diagtl", "circleopen", "wipeup",
-]
-FOOTAGE_LOOK = "hue=s=0.12,eq=contrast=1.3:brightness=-0.07"
+SHOT_LEN = 6.5  # shot lebih panjang; mengurangi rasa gelisah
+TRANSITIONS = ["fade", "fade", "fade"]  # dissolve sederhana dan konsisten
+FOOTAGE_LOOK = "eq=contrast=1.08:brightness=-0.025:saturation=0.88,vignette=PI/5"
 
 # Bidikan: zoom awal/akhir (z0,z1) dan titik fokus jendela potong (0..1) awal/akhir
 SHOTS = {
-    "wide_in":   {"z0": 1.06, "z1": 1.22, "f0": (.5, .5), "f1": (.5, .5)},
-    "wide_out":  {"z0": 1.28, "z1": 1.00, "f0": (.5, .5), "f1": (.5, .5)},
-    "pan_left":  {"z0": 1.30, "z1": 1.30, "f0": (1., .5), "f1": (0., .5)},
-    "pan_right": {"z0": 1.30, "z1": 1.30, "f0": (0., .5), "f1": (1., .5)},
-    "tilt_up":   {"z0": 1.30, "z1": 1.30, "f0": (.5, 1.), "f1": (.5, 0.)},
-    "tilt_down": {"z0": 1.30, "z1": 1.30, "f0": (.5, 0.), "f1": (.5, 1.)},
-    "close_top": {"z0": 1.55, "z1": 1.80, "f0": (.5, .22), "f1": (.5, .30)},
-    "close_low": {"z0": 1.75, "z1": 1.55, "f0": (.5, .85), "f1": (.45, .78)},
-    "punch":     {"z0": 1.15, "z1": 1.95, "f0": (.5, .40), "f1": (.5, .35), "impact": True},
+    "wide_in":   {"z0": 1.015, "z1": 1.055, "f0": (.5, .5), "f1": (.5, .5)},
+    "wide_out":  {"z0": 1.055, "z1": 1.015, "f0": (.5, .5), "f1": (.5, .5)},
+    "pan_left":  {"z0": 1.045, "z1": 1.045, "f0": (.54, .5), "f1": (.46, .5)},
+    "pan_right": {"z0": 1.045, "z1": 1.045, "f0": (.46, .5), "f1": (.54, .5)},
+    "tilt_up":   {"z0": 1.04, "z1": 1.04, "f0": (.5, .54), "f1": (.5, .46)},
+    "tilt_down": {"z0": 1.04, "z1": 1.04, "f0": (.5, .46), "f1": (.5, .54)},
+    "close_top": {"z0": 1.06, "z1": 1.085, "f0": (.5, .42), "f1": (.5, .44)},
+    "close_low": {"z0": 1.08, "z1": 1.055, "f0": (.5, .56), "f1": (.5, .54)},
+    "punch":     {"z0": 1.02, "z1": 1.07, "f0": (.5, .48), "f1": (.5, .46)},
 }
 MOTION_TO_SHOT = {
     "zoom_in": "wide_in", "zoom_out": "wide_out", "pan_left": "pan_left",
     "pan_right": "pan_right", "tilt_up": "tilt_up", "tilt_down": "tilt_down",
 }
-FILLERS = ["close_top", "pan_right", "punch", "close_low", "pan_left", "tilt_up", "punch", "tilt_down"]
+FILLERS = ["wide_in", "pan_right", "wide_out", "pan_left", "tilt_up", "close_top", "tilt_down", "close_low"]
 
 
 # ------------------------------------------------------------------ perencanaan
@@ -86,9 +81,9 @@ def shot_clip(img, shot, first_in_scene, length, cfg, fxp, out):
     d = max(int(round(length * FPS)), 3)
     z = f"{spec['z0']}+({spec['z1']}-{spec['z0']})*on/{d}"
     (fx0, fy0), (fx1, fy1) = spec["f0"], spec["f1"]
-    amp = 46 if spec.get("impact") else (16 if first_in_scene else 0)
-    shx = f"+{amp}*sin(on*2.7)*exp(-on/6)" if amp else ""
-    shy = f"+{int(amp * 0.8)}*sin(on*3.3+1)*exp(-on/6)" if amp else ""
+    amp = 0  # tanpa getaran kamera; motion tetap halus
+    shx = ""
+    shy = ""
     x = f"(iw-iw/zoom)*({fx0}+({fx1}-{fx0})*on/{d}){shx}"
     y = f"(ih-ih/zoom)*({fy0}+({fy1}-{fy0})*on/{d}){shy}"
 
@@ -97,31 +92,16 @@ def shot_clip(img, shot, first_in_scene, length, cfg, fxp, out):
         "crop=2160:3840,setsar=1,"
         f"zoompan=z='{z}':x='{x}':y='{y}':d={d}:s=1080x1920:fps={FPS}"
     )
-    if spec.get("impact"):
-        base += ",fade=t=in:st=0:d=0.12:color=white"
+
     enc = ["-frames:v", d, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", out]
 
-    if spec.get("impact"):  # tambahkan garis kecepatan yang berkedip bergantian
-        fc = (
-            f"[0:v]{base}[b];"
-            "[b][1:v]overlay=0:0:enable='lt(mod(n,6),3)'[o1];"
-            "[o1][2:v]overlay=0:0:enable='gte(mod(n,6),3)'[o2];"
-            f"[o2]{_finish(cfg)}[v]"
-        )
-        run([
-            "ffmpeg", "-y", "-i", img,
-            "-framerate", FPS, "-loop", "1", "-i", fxp["speed_a"],
-            "-framerate", FPS, "-loop", "1", "-i", fxp["speed_b"],
-            "-filter_complex", fc, "-map", "[v]", *enc,
-        ])
-    else:
-        run(["ffmpeg", "-y", "-i", img, "-vf", f"{base},{_finish(cfg)}", *enc])
+    run(["ffmpeg", "-y", "-i", img, "-vf", f"{base},{_finish(cfg)}", *enc])
 
 
 def video_clip(src, dur, idx, cfg, out):
     """Footage: zoom pelan via zoompan; bila gagal, coba versi polos tanpa zoom."""
     n = max(int(round(dur * FPS)), 3)
-    z = f"1+0.10*on/{n}" if idx % 2 == 0 else f"1.10-0.10*on/{n}"
+    z = f"1+0.035*on/{n}" if idx % 2 == 0 else f"1.035-0.035*on/{n}"
     enc = ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", out]
     look = f"{FOOTAGE_LOOK},{_finish(cfg)}"
     vf = (
@@ -189,28 +169,25 @@ def render(script, cfg, theme, narration, ass_name, work: Path, out: Path, fxp, 
     cmd = ["ffmpeg", "-y"]
     for c in clips:
         cmd += ["-i", c]
-    i_ovl, i_narr, i_sfx = n, n + 1, n + 2
-    cmd += ["-framerate", FPS, "-loop", "1", "-i", fxp["overlay"]]
-    cmd += ["-i", Path(narration).resolve(), "-i", sfx_path]
+    i_narr = n
+    cmd += ["-i", Path(narration).resolve()]
 
     music = pick_music(theme)
     if music:
         print(f"Musik latar: {music}")
         cmd += ["-stream_loop", "-1", "-i", music.resolve()]
-        i_mus = n + 3
+        i_mus = n + 1
         audio = (
             f"[{i_narr}:a]asplit=2[na][nb];"
-            f"[{i_mus}:a]aresample=44100,aformat=channel_layouts=stereo,volume=0.26[mu];"
-            f"[{i_sfx}:a]volume=0.9[sx];"
-            "[mu][na]sidechaincompress=threshold=0.02:ratio=10:attack=20:release=500[du];"
-            "[nb][du][sx]amix=inputs=3:duration=first:normalize=0,"
-            "loudnorm=I=-16:TP=-1.5:LRA=11[a]"
+            f"[{i_mus}:a]aresample=44100,aformat=channel_layouts=stereo,volume=0.055[mu];"
+            "[mu][na]sidechaincompress=threshold=0.018:ratio=5:attack=80:release=1000[du];"
+            "[nb][du]amix=inputs=2:duration=first:normalize=0,"
+            "loudnorm=I=-16:TP=-1.5:LRA=9[a]"
         )
     else:
         print("Tidak ada musik di assets/music/ -> tanpa musik latar.")
         audio = (
-            f"[{i_narr}:a][{i_sfx}:a]amix=inputs=2:duration=first:normalize=0,"
-            "loudnorm=I=-16:TP=-1.5:LRA=11[a]"
+            f"[{i_narr}:a]loudnorm=I=-16:TP=-1.5:LRA=9[a]"
         )
 
     chains = [
@@ -225,9 +202,7 @@ def render(script, cfg, theme, narration, ass_name, work: Path, out: Path, fxp, 
             f"[{prev}][v{k + 1}]xfade=transition={tr}:duration={T}:offset={acc:.3f}[x{k + 1}]"
         )
         prev = f"x{k + 1}"
-    chains.append(f"[{prev}][{i_ovl}:v]overlay=0:0:format=auto[vo]")
-    chains.append("[vo]noise=alls=7:allf=t[vn]")
-    chains.append(f"[vn]ass={ass_name}[v]")
+    chains.append(f"[{prev}]ass={ass_name}[v]")
     chains.append(audio)
 
     cmd += [
