@@ -1,0 +1,65 @@
+# Konfigurasi 3 tema misteri. Ubah di sini untuk mengganti gaya tanpa menyentuh kode.
+# Warna ASS memakai format &HBBGGRR& (biru-hijau-merah), mis. kuning = &H0000FFFF&
+
+sejarah:
+  label: "Sejarah Misteri"
+  source: wikipedia            # fakta diambil dari Wikipedia agar tidak mengarang
+  voice: id-ID-ArdiNeural
+  rate: "-5%"
+  tone: >
+    Narator dokumenter yang tenang dan berwibawa. Fokus pada fakta sejarah yang
+    belum terjawab, teori yang beredar, dan apa yang masih menjadi tanda tanya.
+  topic_hint: "misteri sejarah yang belum terpecahkan"
+  regions: ["Nusantara", "Indonesia", "Eropa", "Mesir kuno", "Asia", "Amerika", "Timur Tengah"]
+  disclaimer: "Ringkasan dari sumber terbuka; sebagian masih teori dan belum terbukti."
+  style:
+    font: "DejaVu Serif"
+    size: 74
+    color: "&H0000FFFF&"       # kata aktif: kuning
+    title_size: 70
+    title_box: false
+    uppercase: false
+    grade: "eq=saturation=0.55:contrast=1.15:brightness=-0.05,vignette=PI/4"
+  fallback_keywords: ["ancient ruins fog", "old map parchment", "dark old library", "stone temple mist"]
+
+cerita:
+  label: "Cerita Misteri"
+  source: none                 # fiksi / legenda, wajib diberi label di caption
+  voice: id-ID-ArdiNeural
+  rate: "-8%"
+  tone: >
+    Pencerita horor-misteri yang pelan dan menegangkan. Bangun suasana, beri
+    plot twist di akhir. Boleh legenda/cerita rakyat atau cerita orisinal.
+  topic_hint: "legenda atau cerita misteri yang menyeramkan"
+  regions: ["Jawa", "Sumatra", "Kalimantan", "Sulawesi", "Eropa", "Jepang", "Amerika"]
+  disclaimer: "Ini kisah/legenda/fiksi untuk hiburan, bukan fakta."
+  style:
+    font: "Montserrat"
+    size: 80
+    color: "&H004040FF&"       # kata aktif: merah
+    title_size: 68
+    title_box: false
+    uppercase: true
+    grade: "eq=saturation=0.45:contrast=1.25:brightness=-0.10,vignette=PI/3.2"
+  fallback_keywords: ["dark foggy forest night", "abandoned house night", "candle dark room", "moon clouds night"]
+
+berita:
+  label: "Berita Misteri"
+  source: news                 # judul dari Google News RSS, bukan karangan model
+  voice: id-ID-GadisNeural
+  rate: "+0%"
+  tone: >
+    Pembawa berita yang lugas dan netral. Pakai kata "dilaporkan", "menurut
+    pemberitaan", "belum dapat dipastikan". Jangan menuduh orang tertentu.
+  topic_hint: "misteri OR fenomena aneh OR belum terpecahkan"
+  news_window: "7d"
+  disclaimer: "Berdasarkan pemberitaan media; belum tentu terverifikasi. Cek sumber aslinya."
+  style:
+    font: "Montserrat"
+    size: 76
+    color: "&H0000D7FF&"       # kata aktif: oranye-kuning
+    title_size: 62
+    title_box: true            # judul layar bergaya headline berlatar kotak
+    uppercase: true
+    grade: "eq=saturation=0.75:contrast=1.12:brightness=-0.03,vignette=PI/4.5"
+  fallback_keywords: ["city night street", "newsroom", "police lights night", "dark sky clouds"]
