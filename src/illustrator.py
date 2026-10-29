@@ -18,11 +18,11 @@ W, H = 1024, 1792  # rasio 9:16
 GAP = 16          # jeda antar permintaan (detik)
 
 STYLE = (
-    "manga style black and white ink illustration, graphic novel panel, bold thick outlines, "
-    "solid black shadows, dramatic hatching, high contrast, "
-    "monochrome with a single {accent} color accent on one key element, "
-    "single clear main subject, simple readable composition, vertical, "
-    "no text, no letters, no watermark"
+    "cinematic documentary still blended with refined motion-graphics art direction, "
+    "photorealistic atmospheric lighting with subtle graphic-novel texture, controlled contrast, "
+    "deep shadows and one restrained {accent} accent on a relevant clue, "
+    "clear foreground midground background, one clear focal subject, vertical 9:16 composition, "
+    "editorial documentary framing, realistic material detail, no text, no letters, no watermark"
 )
 
 EXT = {"image/png": ".png", "image/webp": ".webp"}

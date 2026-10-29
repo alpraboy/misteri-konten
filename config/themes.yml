@@ -1,4 +1,4 @@
-# Konfigurasi 3 tema misteri (gaya: komik tinta hitam-putih + satu warna aksen).
+# Agen Misteri v6: cinematic documentary + restrained motion graphics.
 # Warna ASS memakai format &HBBGGRR& (biru-hijau-merah).
 
 sejarah:
@@ -17,7 +17,8 @@ sejarah:
     size: 74
     title_size: 64
     color: "&H0000B0FF&"       # aksen amber (kata aktif + kotak judul)
-    accent_prompt: "amber orange"
+    accent_prompt: "warm amber"
+    motion_accent: "#FFB000"
     uppercase: false
     flicker: false
     grade: "eq=contrast=1.05,vignette=PI/4"
@@ -39,7 +40,8 @@ cerita:
     size: 80
     title_size: 62
     color: "&H003C14DC&"       # aksen merah darah
-    accent_prompt: "crimson red"
+    accent_prompt: "muted crimson"
+    motion_accent: "#D94B64"
     uppercase: true
     flicker: false             # tanpa kedipan agar nyaman ditonton
     grade: "eq=contrast=1.08:brightness=-0.03,vignette=PI/3.2"
@@ -61,7 +63,8 @@ berita:
     size: 76
     title_size: 60
     color: "&H00A4B300&"       # aksen teal
-    accent_prompt: "teal cyan"
+    accent_prompt: "cool teal"
+    motion_accent: "#28C7C9"
     uppercase: true
     flicker: false
     grade: "eq=contrast=1.05,vignette=PI/4.5"

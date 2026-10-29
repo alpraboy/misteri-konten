@@ -3,8 +3,11 @@ import re
 
 W, H = 1080, 1920
 CHUNK = 5
-CAP_Y = 1510
-TITLE_Y = 310
+CAP_Y = 1430
+TITLE_Y = 330
+PROGRESS_Y = 145
+SAFE_LEFT = 72
+SAFE_WIDTH = 936
 WHITE = "&H00FFFFFF&"
 
 
@@ -44,6 +47,7 @@ Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackC
 Style: Cap,{font},{size},{WHITE},{WHITE},&H00101010,&H78000000,0,0,0,0,100,100,0,0,1,4,1,2,90,90,100,1
 Style: Title,{font},{title_size},&H00FFFFFF,&H00FFFFFF,{accent},&H90000000,1,0,0,0,100,100,1,0,1,2,2,8,100,100,70,1
 Style: Brand,Montserrat,28,&H00FFFFFF,&H00FFFFFF,{accent},&H90000000,1,0,0,0,100,100,2,0,1,1,1,7,68,68,62,1
+Style: Beat,Montserrat,25,{accent},{accent},&H00101010,&H90000000,1,0,0,0,100,100,1,0,1,1,1,7,72,72,95,1
 Style: EndCard,{font},54,&H00FFFFFF,&H00FFFFFF,{accent},&H90000000,1,0,0,0,100,100,1,0,1,3,2,5,90,90,80,1
 
 [Events]
@@ -60,6 +64,20 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
             f"{{\\an7\\fad(500,400)\\alpha&H18&}}AGEN MISTERI"
         )
 
+    # Segmented progress indicator: a muted track plus one active segment per scene.
+    scenes = script.get("scenes", [])
+    if total > 1 and scenes:
+        count = len(scenes)
+        gap = 7
+        seg_w = (SAFE_WIDTH - gap * (count - 1)) / count
+        track = f"m 0 0 l {SAFE_WIDTH} 0 l {SAFE_WIDTH} 7 l 0 7"
+        lines.append(f"Dialogue: 0,{_t(0)},{_t(total)},Brand,,0,0,0,,{{\\an7\\pos({SAFE_LEFT},{PROGRESS_Y})\\p1\\1c&H00333333&}}{track}{{\\p0}}")
+        for idx, sc in enumerate(scenes):
+            x = int(idx * (seg_w + gap))
+            w = max(1, int(seg_w))
+            shape = f"m 0 0 l {w} 0 l {w} 7 l 0 7"
+            lines.append(f"Dialogue: 2,{_t(float(sc.get('start', 0)))},{_t(float(sc.get('start', 0)) + float(sc.get('duration', 0)))},Brand,,0,0,0,,{{\\an7\\pos({SAFE_LEFT+x},{PROGRESS_Y})\\p1\\1c{accent}}}{shape}{{\\p0}}")
+
     # One quiet opening title, held briefly and faded away.
     first_scene = script["scenes"][0] if script.get("scenes") else {}
     open_end = min(max(float(first_scene.get("duration", 2.6)) - 0.25, 1.8), 3.0)
@@ -68,8 +86,14 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
         f"{{\\an8\\pos({W // 2},{TITLE_Y})\\fad(450,650)}}{title}"
     )
 
-    # Per-scene labels are optional, restrained and fade rather than slam in.
-    for scene_index, sc in enumerate(script.get("scenes", [])):
+    # Small beat label gives structure without covering the story image.
+    beat_labels = {"hook": "PERTANYAAN", "context": "KONTEKS", "clue": "PETUNJUK", "complication": "KONTRADIKSI", "reveal": "PENGUNGKAPAN", "payoff": "KESIMPULAN"}
+    for scene_index, sc in enumerate(scenes):
+        beat = beat_labels.get(str(sc.get("beat", "clue")).lower(), "PETUNJUK")
+        start = float(sc.get("start", 0)) + 0.18
+        end = min(float(sc.get("start", 0)) + float(sc.get("duration", 0)) - 0.2, start + 1.35)
+        if end - start >= 0.35:
+            lines.append(f"Dialogue: 2,{_t(start)},{_t(end)},Beat,,0,0,0,,{{\\an7\\pos(74,195)\\fad(180,220)}}{beat}  /  {scene_index+1:02d}")
         if scene_index == 0:
             continue  # opening title already introduces the story; avoid stacking labels
         text = _esc(sc.get("onscreen", "")).strip()
@@ -116,7 +140,7 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
         end_start = max(total - 1.65, 0)
         lines.append(
             f"Dialogue: 3,{_t(end_start)},{_t(total)},EndCard,,0,0,0,,"
-            f"{{\\an5\\pos({W // 2},{H // 2})\\fad(350,350)}}TERUS TELUSURI MISTERINYA"
+            f"{{\\an5\\pos({W // 2},{H // 2})\\fad(350,350)}}MISTERI • FAKTA • PETUNJUK"
         )
 
     with open(path, "w", encoding="utf-8") as f:

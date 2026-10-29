@@ -101,7 +101,9 @@ SCHEMA = """{
       "keywords": [],
       "motion": "salah satu dari: zoom_in, zoom_out, pan_left, pan_right, tilt_up, tilt_down",
       "impact_word": "SATU kata penting yang persis ada di narasi adegan ini untuk dimunculkan raksasa; kosongkan bila tidak perlu",
-      "onscreen": "teks besar di layar, maks 5 kata, boleh kosong"
+      "onscreen": "teks besar di layar, maks 4 kata, boleh kosong",
+      "beat": "hook, context, clue, complication, reveal, atau payoff",
+      "visual_role": "establishing, action, evidence, comparison, atau closing"
     }
   ],
   "caption": "deskripsi 1-2 kalimat untuk unggahan",
@@ -122,7 +124,10 @@ def generate(theme, cfg, topic=""):
             source_note = "Gunakan HANYA fakta yang ada di SUMBER. Jangan menambah tanggal, nama, atau angka dari luar sumber."
             source_urls.append(url)
         else:
-            source_note = "Sumber tidak ditemukan. Gunakan hanya fakta yang sangat umum dan pasti; tandai sisanya sebagai teori."
+            raise RuntimeError(
+                f"Sumber Wikipedia tidak ditemukan untuk topik '{topic}'. "
+                "Produksi faktual dihentikan agar agen tidak mengarang fakta. Coba topik yang lebih spesifik."
+            )
     elif cfg["source"] == "news":
         items = sources.news_headlines(topic, cfg.get("news_window", "7d"))
         if not items:
@@ -143,15 +148,20 @@ def generate(theme, cfg, topic=""):
 
     prompt = f"""Kamu penulis skrip + storyboard video pendek vertikal (YouTube Shorts/TikTok) bertema {cfg['label']}.
 Gaya narasi: {cfg['tone']}
-Gaya visual: cinematic mystery documentary, graphic-novel illustration yang matang, hitam-putih/warna redup dengan satu aksen warna. Kamera dan komposisi harus terasa seperti dokumenter, bukan slideshow template.
+Gaya visual: cinematic documentary + motion graphics minimalis, pencahayaan film, detail realistis, satu aksen warna, komposisi editorial. Kamera dan komposisi harus terasa seperti dokumenter, bukan slideshow template.
 
 {source_note}
 
 {material}
 
-Aturan:
-- Total narasi 85-100 kata, dibagi 7-8 adegan. Utamakan kalimat jelas, jeda alami, dan tempo tenang; satu ide utama per adegan. Sisakan ruang bernapas; jangan memadatkan terlalu banyak informasi per kalimat.
-- Adegan 1 adalah HOOK 1-2 kalimat yang membuat orang berhenti scroll. Adegan terakhir: penutup/pertanyaan terbuka.
+Aturan RETENTION ENGINE v6:
+- Total narasi 145-175 kata, dibagi 9-12 adegan, target hasil audio 60-90 detik pada tempo tenang. Satu gagasan utama per adegan, kalimat lisan natural, tidak terburu-buru.
+- Urutan cerita wajib: hook (0-3 detik), context, clue, complication/kontradiksi, reveal yang didukung fakta, lalu payoff/penutup. Jangan membuat clickbait yang tidak terjawab.
+- Setiap 1-3 adegan harus menambahkan informasi baru atau pertanyaan spesifik; jangan mengulang kalimat dengan sinonim. Bangun rasa ingin tahu tanpa menahan fakta penting secara menyesatkan.
+- Adegan 1 adalah hook konkret: detail paling ganjil/konflik yang benar-benar ada dalam sumber atau premis fiksi. Jangan mulai dengan salam, logo, atau pengantar umum. Adegan terakhir memberi jawaban/kesimpulan yang memuaskan, lalu pertanyaan relevan jika cocok.
+- Untuk tema faktual, jangan menyebut klaim yang tidak didukung bahan sumber. Bedakan fakta, dugaan, dan teori dengan bahasa eksplisit. Jika sumber tidak cukup, katakan bukti terbatas dan jangan mengarang pengungkapan. Untuk berita, sumber input hanya headline; jangan menyimpulkan detail yang tidak ada di headline.
+- Setiap scene harus punya beat dan visual_role sesuai schema; variasikan establishing, action, evidence, comparison, closing. Motion graphics hanya berupa callout kecil/label petunjuk dan indikator progres, bukan teks besar yang memenuhi layar.
+- Jangan memaksa cliffhanger palsu; penonton harus mendapat nilai/penjelasan yang dijanjikan di hook.
 - "character": buat SATU tokoh utama bila ceritanya butuh tokoh (deskripsi visual tetap, bahasa Inggris). Set "with_character": true pada adegan yang menampilkan tokoh itu.
 - Hampir semua adegan "visual": "illustration". Gunakan "footage" PALING BANYAK 2 adegan di tengah, hanya untuk suasana umum yang mudah dicari di stok video (mis. "foggy forest", "ocean waves", "night sky"); isi "keywords" 2 alternatif berbahasa Inggris. Adegan pertama dan terakhir harus illustration.
 - "impact_word": isi string kosong pada semua adegan; jangan gunakan teks raksasa yang mengganggu narasi.
@@ -168,8 +178,25 @@ Balas HANYA JSON dengan bentuk:
 
     data = _gemini(prompt)
     scenes = data.get("scenes", [])
-    if not (5 <= len(scenes) <= 14):
-        raise RuntimeError(f"Jumlah adegan tidak wajar: {len(scenes)}")
+    initial_words = sum(len(str(sc.get("narration", "")).split()) for sc in scenes)
+    if not (9 <= len(scenes) <= 12) or not (145 <= initial_words <= 175):
+        repair_prompt = f"""Perbaiki JSON skrip video Agen Misteri v6 di bawah.
+WAJIB: 9-12 adegan dan total narasi 145-175 kata bahasa Indonesia.
+Alur wajib hook konkret -> konteks -> petunjuk -> komplikasi -> pengungkapan berbasis sumber -> payoff.
+Jangan menambah fakta di luar bahan sumber. Pertahankan judul/topik dan isi yang didukung sumber; tiap adegan tetap punya narration, visual, image_prompt, with_character, keywords, motion, impact_word, onscreen, beat, visual_role.
+Bahan sumber yang diizinkan:
+{material}
+Catatan sumber: {source_note}
+JSON yang perlu diperbaiki:
+{json.dumps(data, ensure_ascii=False)}
+Kembalikan HANYA JSON valid dengan skema ini:
+{SCHEMA}
+"""
+        print(f"Skrip di luar target ({len(scenes)} adegan/{initial_words} kata); mencoba satu kali perbaikan terstruktur...")
+        data = _gemini(repair_prompt, temperature=0.35)
+        scenes = data.get("scenes", [])
+    if not (9 <= len(scenes) <= 12):
+        raise RuntimeError(f"Skrip gagal memenuhi target 9-12 adegan setelah satu kali perbaikan: {len(scenes)}")
 
     footage_used = 0
     for i, s in enumerate(scenes):
@@ -201,8 +228,22 @@ Balas HANYA JSON dengan bentuk:
             if kept > 6:
                 s["impact_word"] = ""
     data["character"] = (data.get("character") or "").strip()
+    # Normalize narrative beats so the editor can apply consistent motion graphics.
+    default_beats = ["hook", "context", "clue", "clue", "complication", "clue", "reveal", "payoff"]
+    default_roles = ["establishing", "establishing", "evidence", "action", "comparison", "evidence", "evidence", "closing"]
+    for i, scene in enumerate(scenes):
+        scene["beat"] = (scene.get("beat") or default_beats[min(i, len(default_beats)-1)]).strip().lower()
+        if scene["beat"] not in {"hook", "context", "clue", "complication", "reveal", "payoff"}:
+            scene["beat"] = default_beats[min(i, len(default_beats)-1)]
+        scene["visual_role"] = (scene.get("visual_role") or default_roles[min(i, len(default_roles)-1)]).strip().lower()
+        if scene["visual_role"] not in {"establishing", "action", "evidence", "comparison", "closing"}:
+            scene["visual_role"] = default_roles[min(i, len(default_roles)-1)]
+        scene["onscreen"] = scene["onscreen"][:42]
+    data["source_evidence"] = material
+    data["source_note"] = source_note
+    data["character"] = (data.get("character") or "").strip()
     data["topic"] = topic
     data["source_urls"] = source_urls
     words = sum(len(s["narration"].split()) for s in scenes)
-    print(f"Skrip: {len(scenes)} adegan ({footage_used} footage), {words} kata")
+    print(f"Skrip: {len(scenes)} adegan ({footage_used} footage), {words} kata; target v6 145-175 kata / 60-90 detik")
     return data

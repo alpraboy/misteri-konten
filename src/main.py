@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -44,8 +45,10 @@ def main():
     print("== 2/6 Suara ==")
     rate = cfg["rate"]
     narration = voice.synthesize(script, cfg, work, rate)
-    if script["total_duration"] > 61:
-        print("Catatan: narasi lebih dari 61 detik; tidak dipercepat otomatis agar tetap nyaman didengar.")
+    actual_duration = float(script.get("total_duration", 0))
+    duration_status = "PASS" if 60 <= actual_duration <= 90 else "REVIEW"
+    if duration_status != "PASS":
+        print(f"PERINGATAN DURASI: {actual_duration:.1f}s di luar target v6 60-90s; tidak dipercepat otomatis.")
 
     has_footage_key = bool(os.environ.get("PIXABAY_API_KEY") or os.environ.get("PEXELS_API_KEY"))
     if not has_footage_key:  # tanpa key footage: semua adegan jadi ilustrasi
@@ -67,10 +70,10 @@ def main():
 
     print("== 5/6 Cinematic typography & sound design ==")
     editor.plan_shots(script)
-    impacts = []  # V5: tidak memakai impact-word atau SFX agresif
+    impacts = []  # V6: tanpa SFX agresif; retensi dibangun dari cerita dan visual
     captions.build_ass(script, cfg, work / "captions.ass")
     fxp = {"overlay": str((work / "overlay.png").resolve()), "speed_a": str((work / "speed_a.png").resolve()), "speed_b": str((work / "speed_b.png").resolve())}
-    sfx = ""  # V5: sound effect dinonaktifkan; narasi + musik lembut saja
+    sfx = ""  # V6: sound effect dinonaktifkan; narasi + musik lembut saja
 
     print("== 6/6 Render ==")
     video = out_dir / "video.mp4"
@@ -84,20 +87,59 @@ def main():
     )
     (out_dir / "caption.txt").write_text(caption_txt, encoding="utf-8")
 
-    verify = ["# Cek sebelum upload\n", f"Tema: {cfg['label']}  |  Topik: {script['topic']}\n"]
-    verify.append("## Klaim yang perlu diverifikasi\n")
-    verify += [f"- [ ] {c}" for c in script.get("claims_to_verify", [])] or ["- (tidak ada)"]
+    verify = ["# Validasi sumber sebelum upload\n", f"Tema: {cfg['label']}  |  Topik: {script['topic']}\n",
+              f"Durasi audio: {actual_duration:.1f} detik | Target 60-90 detik: {duration_status}\n"]
+    verify.append("## Status validasi otomatis\n")
+    verify.append("Validasi otomatis memeriksa keberadaan sumber, konsistensi metadata, dan kemiripan kata kunci; ini BUKAN verifikasi kebenaran fakta. Klaim faktual tetap wajib diperiksa manusia pada sumber asli.\n")
+    source_text = (script.get("source_evidence") or "").lower()
+    claims = [] if cfg.get("source") == "none" else script.get("claims_to_verify", [])
+    if cfg.get("source") == "none":
+        verify.append("Tema ini diklasifikasikan sebagai fiksi/legenda. Pastikan caption dan narasi menyebutnya sebagai fiksi/legenda, bukan fakta sejarah terverifikasi.\n")
+    if claims:
+        for claim in claims:
+            tokens = [t.lower() for t in re.findall(r"[A-Za-zÀ-ÿ0-9]{4,}", claim)]
+            hits = [t for t in tokens if t in source_text]
+            status = "ada kecocokan kata di bahan sumber; cek konteks asli" if hits else "tidak ditemukan kecocokan langsung; wajib cek sumber / revisi klaim"
+            verify.append(f"- [ ] **{claim}** — {status}.\n")
+    else:
+        verify.append("- Tidak ada klaim yang ditandai oleh model; tetap periksa narasi faktual secara manual.\n")
+    verify.append("\n## Klaim yang perlu diverifikasi\n")
+    verify += [f"- [ ] {c}" for c in claims] or ["- (tidak ada)"]
     verify.append("\n## Sumber yang dipakai agen\n")
     verify += [f"- {u}" for u in script.get("source_urls", [])] or ["- (tema fiksi/tanpa sumber)"]
     verify.append("\n## Kredit footage\n")
     verify += [f"- {c}" for c in credits]
     (out_dir / "verify.md").write_text("\n".join(verify) + "\n", encoding="utf-8")
 
-    slim = {k: v for k, v in script.items() if k != "scenes"}
+    # Retention QA: deterministic checks to help the creator review pacing before upload.
+    scene_count = len(script.get("scenes", []))
+    word_count = sum(len(str(sc.get("narration", "")).split()) for sc in script.get("scenes", []))
+    hook_words = len(str(script.get("scenes", [{}])[0].get("narration", "")).split()) if scene_count else 0
+    retention = [
+        "# Retention QA — pemeriksaan sebelum upload", "",
+        f"- Durasi audio: {actual_duration:.1f}s (target 60-90s: {duration_status})",
+        f"- Jumlah adegan: {scene_count} (target 9-12: {'PASS' if 9 <= scene_count <= 12 else 'REVIEW'})",
+        f"- Jumlah kata narasi: {word_count} (target 145-175: {'PASS' if 145 <= word_count <= 175 else 'REVIEW'})",
+        f"- Hook pembuka: {hook_words} kata (ideal ringkas, 8-24 kata: {'PASS' if 8 <= hook_words <= 24 else 'REVIEW'})",
+        "", "## Struktur adegan", "",
+    ]
+    for i, sc in enumerate(script.get("scenes", []), 1):
+        retention.append(f"{i:02d}. [{sc.get('beat', 'clue')}] {sc.get('narration', '').strip()}")
+    retention += ["", "## Checklist kreator", "",
+                  "- [ ] Hook menyampaikan detail spesifik, bukan clickbait kosong.",
+                  "- [ ] Setiap adegan menambah fakta/petunjuk baru.",
+                  "- [ ] Pengungkapan menjawab pertanyaan yang dijanjikan hook.",
+                  "- [ ] Semua klaim faktual cocok dengan sumber primer/tepercaya.",
+                  "- [ ] Subtitle aman dari UI platform dan mudah dibaca.",
+                  "- [ ] Musik tidak menutupi narasi; cek hasil render sampai selesai."]
+    (out_dir / "retention_report.md").write_text("\n".join(retention) + "\n", encoding="utf-8")
+
+    slim = {k: v for k, v in script.items() if k not in ("scenes", "source_evidence")}
     slim["scenes"] = [
         {"narration": s["narration"], "visual": s["visual"], "image_prompt": s["image_prompt"],
          "keywords": s["keywords"], "motion": s["motion"], "impact_word": s["impact_word"],
-         "onscreen": s["onscreen"], "duration": round(s["duration"], 2)}
+         "onscreen": s["onscreen"], "beat": s.get("beat", "clue"),
+         "visual_role": s.get("visual_role", "establishing"), "duration": round(s["duration"], 2)}
         for s in script["scenes"]
     ]
     (out_dir / "script.json").write_text(json.dumps(slim, ensure_ascii=False, indent=2), encoding="utf-8")
