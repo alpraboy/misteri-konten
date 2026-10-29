@@ -92,11 +92,16 @@ def _download(url, dest: Path):
 def fetch_all(script, cfg, work: Path):
     """Isi tiap scene dengan 'clip' (path file). Kembalikan daftar kredit."""
     work.mkdir(parents=True, exist_ok=True)
+    wanted = [i for i, sc in enumerate(script["scenes"]) if sc.get("visual") == "footage"]
+    if not wanted:
+        return []
     search, has_portrait = _provider()
     used, credits = set(), []
     fallback = list(cfg["fallback_keywords"])
 
     for i, sc in enumerate(script["scenes"]):
+        if sc.get("visual") != "footage":
+            continue
         chosen = None
         for q in list(sc["keywords"]) + fallback:
             for portrait in ((True, False) if has_portrait else (False,)):

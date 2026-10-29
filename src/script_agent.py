@@ -87,12 +87,19 @@ def _pick_topic(theme, cfg, topic):
     return _gemini(prompt, temperature=1.0)["topic"].strip()
 
 
+MOTIONS = ["zoom_in", "zoom_out", "pan_left", "pan_right", "tilt_up", "tilt_down"]
+
 SCHEMA = """{
   "title": "judul video, maks 70 karakter, memancing rasa penasaran",
+  "character": "deskripsi visual tokoh utama dalam BAHASA INGGRIS, 25-40 kata, tetap (usia, pakaian, ciri khas); kosongkan bila tidak ada tokoh",
   "scenes": [
     {
       "narration": "narasi adegan, 10-20 kata, bahasa Indonesia lisan yang enak didengar",
-      "keywords": ["2-3 kata kunci footage BAHASA INGGRIS, visual konkret", "alternatif"],
+      "visual": "illustration atau footage",
+      "image_prompt": "BAHASA INGGRIS: subjek, aksi, latar, sudut kamera, suasana. Tanpa teks/huruf di gambar.",
+      "with_character": true,
+      "keywords": [],
+      "motion": "salah satu dari: zoom_in, zoom_out, pan_left, pan_right, tilt_up, tilt_down",
       "onscreen": "teks besar di layar, maks 5 kata, boleh kosong"
     }
   ],
@@ -133,18 +140,22 @@ def generate(theme, cfg, topic=""):
             "atau nama orang sungguhan. Sebutkan di narasi bahwa ini kisah/legenda."
         )
 
-    prompt = f"""Kamu penulis skrip video pendek vertikal (YouTube Shorts/TikTok) bertema {cfg['label']}.
-Gaya: {cfg['tone']}
+    prompt = f"""Kamu penulis skrip + storyboard video pendek vertikal (YouTube Shorts/TikTok) bertema {cfg['label']}.
+Gaya narasi: {cfg['tone']}
+Gaya visual: komik tinta hitam-putih (graphic novel) dengan satu warna aksen.
 
 {source_note}
 
 {material}
 
 Aturan:
-- Total narasi 130-155 kata (muat sekitar 60 detik), dibagi 8-11 adegan.
+- Total narasi 130-155 kata (muat sekitar 60 detik), dibagi 8-10 adegan.
 - Adegan 1 adalah HOOK 1-2 kalimat yang membuat orang berhenti scroll. Adegan terakhir: penutup/pertanyaan terbuka.
-- Hindari kekerasan grafis, SARA, dan konten untuk menakut-nakuti anak.
-- Kata kunci footage harus konkret & bisa ditemukan di stok video (mis. "foggy forest night", "old stone ruins"), bukan konsep abstrak.
+- "character": buat SATU tokoh utama bila ceritanya butuh tokoh (deskripsi visual tetap, bahasa Inggris). Set "with_character": true pada adegan yang menampilkan tokoh itu.
+- Hampir semua adegan "visual": "illustration". Gunakan "footage" PALING BANYAK 2 adegan di tengah, hanya untuk suasana umum yang mudah dicari di stok video (mis. "foggy forest", "ocean waves", "night sky"); isi "keywords" 2 alternatif berbahasa Inggris. Adegan pertama dan terakhir harus illustration.
+- "image_prompt" harus konkret dan menggambarkan isi narasi adegan itu. Variasikan sudut kamera (close-up, wide shot, low angle, dari belakang/siluet) agar tidak monoton. Jangan ada teks atau huruf di dalam gambar.
+- Jangan menggambarkan orang sungguhan secara spesifik; gunakan tokoh gambar/siluet anonim. Hindari gore dan kekerasan grafis, SARA, dan konten untuk anak.
+- "motion": pilih gerak kamera yang cocok (zoom_in untuk ketegangan, pan untuk memperlihatkan tempat, tilt untuk bangunan/langit); variasikan antar adegan.
 - Isi "claims_to_verify" dengan klaim faktual penting (nama, tanggal, angka).
 
 Balas HANYA JSON dengan bentuk:
@@ -154,13 +165,32 @@ Balas HANYA JSON dengan bentuk:
     scenes = data.get("scenes", [])
     if not (5 <= len(scenes) <= 14):
         raise RuntimeError(f"Jumlah adegan tidak wajar: {len(scenes)}")
-    for s in scenes:
+
+    footage_used = 0
+    for i, s in enumerate(scenes):
         s["narration"] = s["narration"].strip()
         kw = s.get("keywords") or []
         s["keywords"] = [kw] if isinstance(kw, str) else list(kw)
         s["onscreen"] = (s.get("onscreen") or "").strip()
+        s["image_prompt"] = (s.get("image_prompt") or "").strip()
+
+        vis = s.get("visual", "illustration")
+        if vis == "footage" and (i in (0, len(scenes) - 1) or footage_used >= 2 or not s["keywords"]):
+            vis = "illustration"
+        if vis != "footage":
+            vis = "illustration"
+        else:
+            footage_used += 1
+        if vis == "illustration" and not s["image_prompt"]:
+            s["image_prompt"] = ", ".join(s["keywords"]) or "mysterious atmospheric scene, dramatic shadows"
+        s["visual"] = vis
+        s["with_character"] = bool(s.get("with_character"))
+        if s.get("motion") not in MOTIONS:
+            s["motion"] = MOTIONS[i % len(MOTIONS)]
+
+    data["character"] = (data.get("character") or "").strip()
     data["topic"] = topic
     data["source_urls"] = source_urls
     words = sum(len(s["narration"].split()) for s in scenes)
-    print(f"Skrip: {len(scenes)} adegan, {words} kata")
+    print(f"Skrip: {len(scenes)} adegan ({footage_used} footage), {words} kata")
     return data

@@ -1,5 +1,5 @@
-# Konfigurasi 3 tema misteri. Ubah di sini untuk mengganti gaya tanpa menyentuh kode.
-# Warna ASS memakai format &HBBGGRR& (biru-hijau-merah), mis. kuning = &H0000FFFF&
+# Konfigurasi 3 tema misteri (gaya: komik tinta hitam-putih + satu warna aksen).
+# Warna ASS memakai format &HBBGGRR& (biru-hijau-merah).
 
 sejarah:
   label: "Sejarah Misteri"
@@ -15,11 +15,12 @@ sejarah:
   style:
     font: "DejaVu Serif"
     size: 74
-    color: "&H0000FFFF&"       # kata aktif: kuning
-    title_size: 70
-    title_box: false
+    title_size: 64
+    color: "&H0000B0FF&"       # aksen amber (kata aktif + kotak judul)
+    accent_prompt: "amber orange"
     uppercase: false
-    grade: "eq=saturation=0.55:contrast=1.15:brightness=-0.05,vignette=PI/4"
+    flicker: false
+    grade: "eq=contrast=1.05,vignette=PI/4"
   fallback_keywords: ["ancient ruins fog", "old map parchment", "dark old library", "stone temple mist"]
 
 cerita:
@@ -36,11 +37,12 @@ cerita:
   style:
     font: "Montserrat"
     size: 80
-    color: "&H004040FF&"       # kata aktif: merah
-    title_size: 68
-    title_box: false
+    title_size: 62
+    color: "&H003C14DC&"       # aksen merah darah
+    accent_prompt: "crimson red"
     uppercase: true
-    grade: "eq=saturation=0.45:contrast=1.25:brightness=-0.10,vignette=PI/3.2"
+    flicker: true              # cahaya berkedip tipis
+    grade: "eq=contrast=1.08:brightness=-0.03,vignette=PI/3.2"
   fallback_keywords: ["dark foggy forest night", "abandoned house night", "candle dark room", "moon clouds night"]
 
 berita:
@@ -57,9 +59,10 @@ berita:
   style:
     font: "Montserrat"
     size: 76
-    color: "&H0000D7FF&"       # kata aktif: oranye-kuning
-    title_size: 62
-    title_box: true            # judul layar bergaya headline berlatar kotak
+    title_size: 60
+    color: "&H00A4B300&"       # aksen teal
+    accent_prompt: "teal cyan"
     uppercase: true
-    grade: "eq=saturation=0.75:contrast=1.12:brightness=-0.03,vignette=PI/4.5"
+    flicker: false
+    grade: "eq=contrast=1.05,vignette=PI/4.5"
   fallback_keywords: ["city night street", "newsroom", "police lights night", "dark sky clouds"]

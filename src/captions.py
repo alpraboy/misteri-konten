@@ -1,9 +1,11 @@
-"""Typography: subtitle kata-per-kata (highlight) + teks judul per adegan, format ASS."""
+"""Typography bergaya komik: judul 'stiker' yang membanting masuk + subtitle kata-per-kata
+dengan efek pop (overshoot) dan kata aktif berwarna aksen. Format ASS."""
 
 W, H = 1080, 1920
 CHUNK = 3            # jumlah kata per tampilan
-CAP_Y = 1350         # posisi vertikal subtitle
-TITLE_Y = 420        # posisi vertikal teks judul
+CAP_Y = 1360         # posisi vertikal subtitle
+TITLE_Y = 430        # posisi vertikal teks judul
+WHITE = "&H00FFFFFF&"
 
 
 def _t(sec):
@@ -25,9 +27,8 @@ def _fmt(word, upper):
 
 def build_ass(script, cfg, path):
     st = cfg["style"]
-    font, size, hi = st["font"], st["size"], st["color"]
+    font, size, accent = st["font"], st["size"], st["color"]
     upper = st.get("uppercase", False)
-    box = st.get("title_box", False)
 
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -38,31 +39,31 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Cap,{font},{size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,1,0,0,0,100,100,0,0,1,6,2,5,70,70,60,1
-Style: Title,{font},{st['title_size']},&H00FFFFFF,&H00FFFFFF,{'&H000000C8' if box else '&H00000000'},{'&H000000C8' if box else '&H96000000'},1,0,0,0,100,100,2,0,{3 if box else 1},{14 if box else 6},0,5,90,90,60,1
+Style: Cap,{font},{size},{WHITE},{WHITE},&H00000000,&H00000000,1,0,0,0,100,100,1,0,1,9,4,5,70,70,60,1
+Style: Title,{font},{st['title_size']},&H00000000,&H00000000,{accent},{accent},1,0,0,0,100,100,2,0,3,18,0,5,90,90,60,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
 """
     lines = []
 
-    # 1) Teks judul per adegan (typography besar, fade in/out)
-    for sc in script["scenes"]:
+    # 1) Judul 'stiker komik': membanting masuk (besar -> normal), miring, lalu memudar
+    for k, sc in enumerate(script["scenes"]):
         text = sc.get("onscreen", "").strip()
         if not text:
             continue
-        start = sc["start"] + 0.15
-        end = sc["start"] + min(sc["duration"] - 0.2, 3.0)
+        start = sc["start"] + 0.12
+        end = sc["start"] + min(sc["duration"] - 0.2, 3.2)
         if end - start < 0.8:
             continue
-        txt = _fmt(text, True if box else upper)
+        tilt = -3 if k % 2 == 0 else 3
+        slam = "\\fscx165\\fscy165\\t(0,170,\\fscx100\\fscy100)"
         lines.append(
-            f"Dialogue: 1,{_t(start)},{_t(end)},Title,,0,0,0,,"
-            f"{{\\an5\\pos({W // 2},{TITLE_Y})\\fad(250,250)"
-            f"\\fscx85\\fscy85\\t(0,300,\\fscx100\\fscy100)}}{txt}"
+            f"Dialogue: 2,{_t(start)},{_t(end)},Title,,0,0,0,,"
+            f"{{\\an5\\pos({W // 2},{TITLE_Y})\\frz{tilt}{slam}\\fad(0,220)}}{_fmt(text, True)}"
         )
 
-    # 2) Subtitle kata-per-kata: kata aktif berwarna + efek "pop"
+    # 2) Subtitle kata-per-kata: kata aktif beraksen + pop dengan overshoot
     for sc in script["scenes"]:
         words = sc["words"]
         for c in range(0, len(words), CHUNK):
@@ -77,16 +78,16 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
                 if end - start < 0.05:
                     continue
                 parts = []
-                for k, cw in enumerate(chunk):
+                for kk, cw in enumerate(chunk):
                     tok = _fmt(cw["text"], upper)
-                    if k == j:
-                        parts.append(f"{{\\c{hi}}}{tok}{{\\c&H00FFFFFF&}}")
+                    if kk == j:
+                        pop = "\\fscx70\\fscy70\\t(0,80,\\fscx124\\fscy124)\\t(80,170,\\fscx110\\fscy110)"
+                        parts.append(f"{{\\c{accent}{pop}}}{tok}{{\\r}}")
                     else:
                         parts.append(tok)
-                pop = "\\fscx92\\fscy92\\t(0,90,\\fscx100\\fscy100)"
                 lines.append(
-                    f"Dialogue: 0,{_t(start)},{_t(end)},Cap,,0,0,0,,"
-                    f"{{\\an5\\pos({W // 2},{CAP_Y}){pop}}}{' '.join(parts)}"
+                    f"Dialogue: 1,{_t(start)},{_t(end)},Cap,,0,0,0,,"
+                    f"{{\\an5\\pos({W // 2},{CAP_Y})}}{' '.join(parts)}"
                 )
 
     with open(path, "w", encoding="utf-8") as f:

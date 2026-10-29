@@ -1,6 +1,7 @@
 """Orkestrator: tema + (opsional) topik -> video.mp4, caption.txt, verify.md, thumbnail.jpg"""
 import argparse
 import json
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import captions
 import editor
 import footage
+import illustrator
 import script_agent
 import voice
 from util import slugify
@@ -31,23 +33,38 @@ def main():
         shutil.rmtree(work)
     work.mkdir()
 
-    print("== 1/5 Skrip ==")
+    print("== 1/6 Skrip & storyboard ==")
     script = script_agent.generate(args.theme, cfg, args.topic)
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     out_dir = Path("output") / f"{stamp}-{args.theme}-{slugify(script['title'])}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print("== 2/5 Suara ==")
+    print("== 2/6 Suara ==")
     narration = voice.synthesize(script, cfg, work)
 
-    print("== 3/5 Footage ==")
+    has_footage_key = bool(os.environ.get("PIXABAY_API_KEY") or os.environ.get("PEXELS_API_KEY"))
+    if not has_footage_key:  # tanpa key footage: semua adegan jadi ilustrasi
+        for sc in script["scenes"]:
+            if sc["visual"] == "footage":
+                sc["visual"] = "illustration"
+                sc["image_prompt"] = sc["image_prompt"] or ", ".join(sc["keywords"]) or "mysterious atmospheric scene"
+
+    print("== 3/6 Ilustrasi ==")
+    failed = illustrator.generate_all(script, cfg, work)
+    for i in failed:  # ilustrasi gagal -> pakai footage sebagai cadangan
+        if not has_footage_key:
+            raise RuntimeError(f"Ilustrasi adegan {i} gagal dan tidak ada key footage sebagai cadangan.")
+        script["scenes"][i]["visual"] = "footage"
+        print(f"Adegan {i} dialihkan ke footage.")
+
+    print("== 4/6 Footage ==")
     credits = footage.fetch_all(script, cfg, work)
 
-    print("== 4/5 Typography ==")
+    print("== 5/6 Typography ==")
     captions.build_ass(script, cfg, work / "captions.ass")
 
-    print("== 5/5 Render ==")
+    print("== 6/6 Render ==")
     video = out_dir / "video.mp4"
     editor.render(script, cfg, args.theme, narration, "captions.ass", work, video)
 
@@ -55,7 +72,7 @@ def main():
     tags = " ".join(script.get("hashtags", []))
     caption_txt = (
         f"{script['title']}\n\n{script.get('caption', '')}\n\n"
-        f"{cfg['disclaimer']}\n\n{tags}\n\nFootage: Pixabay/Pexels"
+        f"{cfg['disclaimer']}\n\n{tags}\n\nIlustrasi dibuat dengan AI. Footage: Pixabay/Pexels"
     )
     (out_dir / "caption.txt").write_text(caption_txt, encoding="utf-8")
 
@@ -70,7 +87,8 @@ def main():
 
     slim = {k: v for k, v in script.items() if k != "scenes"}
     slim["scenes"] = [
-        {"narration": s["narration"], "keywords": s["keywords"],
+        {"narration": s["narration"], "visual": s["visual"], "image_prompt": s["image_prompt"],
+         "keywords": s["keywords"], "motion": s["motion"],
          "onscreen": s["onscreen"], "duration": round(s["duration"], 2)}
         for s in script["scenes"]
     ]
