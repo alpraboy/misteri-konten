@@ -13,9 +13,15 @@ import sources
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
+# Nama model bisa dipensiunkan Google (gemini-2.5-* berhenti 16 Okt 2026).
+# Alias "-latest" otomatis menunjuk model terbaru; sisanya cadangan.
+MODELS = ["gemini-flash-latest", "gemini-3-flash-preview", "gemini-flash-lite-latest"]
+
+
 def _gemini(prompt, temperature=0.9):
     key = os.environ["GEMINI_API_KEY"]
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    env_model = os.environ.get("GEMINI_MODEL", "").strip()
+    models = ([env_model] if env_model else []) + MODELS
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -24,21 +30,31 @@ def _gemini(prompt, temperature=0.9):
         },
     }
     last = None
-    for attempt in range(4):
-        r = requests.post(
-            GEMINI_URL.format(model=model),
-            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-            json=body, timeout=120,
-        )
-        if r.status_code in (429, 500, 502, 503):
-            last = r.text[:300]
-            time.sleep(8 * (attempt + 1))
-            continue
-        r.raise_for_status()
-        text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-        text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
-        return json.loads(text)
-    raise RuntimeError(f"Gemini gagal setelah beberapa percobaan: {last}")
+    for model in models:
+        for attempt in range(3):
+            r = requests.post(
+                GEMINI_URL.format(model=model),
+                headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                json=body, timeout=120,
+            )
+            if r.status_code == 404:
+                last = r.text[:300]
+                print(f"Model {model} tidak tersedia (404), coba model berikutnya...")
+                break
+            if r.status_code in (429, 500, 502, 503):
+                last = r.text[:300]
+                print(f"Model {model} sibuk ({r.status_code}), menunggu...")
+                time.sleep(8 * (attempt + 1))
+                continue
+            if r.status_code >= 400:
+                print(r.text[:500])
+            r.raise_for_status()
+            parts = r.json()["candidates"][0]["content"]["parts"]
+            text = "".join(p.get("text", "") for p in parts)
+            text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
+            print(f"Model dipakai: {model}")
+            return json.loads(text)
+    raise RuntimeError(f"Semua model Gemini gagal. Respons terakhir: {last}")
 
 
 def _pick_topic(theme, cfg, topic):
