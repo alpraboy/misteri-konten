@@ -100,6 +100,7 @@ SCHEMA = """{
       "with_character": true,
       "keywords": [],
       "motion": "salah satu dari: zoom_in, zoom_out, pan_left, pan_right, tilt_up, tilt_down",
+      "impact_word": "SATU kata penting yang persis ada di narasi adegan ini untuk dimunculkan raksasa; kosongkan bila tidak perlu",
       "onscreen": "teks besar di layar, maks 5 kata, boleh kosong"
     }
   ],
@@ -153,6 +154,8 @@ Aturan:
 - Adegan 1 adalah HOOK 1-2 kalimat yang membuat orang berhenti scroll. Adegan terakhir: penutup/pertanyaan terbuka.
 - "character": buat SATU tokoh utama bila ceritanya butuh tokoh (deskripsi visual tetap, bahasa Inggris). Set "with_character": true pada adegan yang menampilkan tokoh itu.
 - Hampir semua adegan "visual": "illustration". Gunakan "footage" PALING BANYAK 2 adegan di tengah, hanya untuk suasana umum yang mudah dicari di stok video (mis. "foggy forest", "ocean waves", "night sky"); isi "keywords" 2 alternatif berbahasa Inggris. Adegan pertama dan terakhir harus illustration.
+- "impact_word": isi di 4-6 adegan saja (momen paling menegangkan/mengejutkan), kata persis seperti di narasi, tanpa tanda baca.
+- Komposisi gambar harus SEDERHANA agar hasil AI tidak berantakan: satu subjek utama yang jelas, hindari kerumunan, hindari close-up tangan/wajah; lebih baik siluet, tokoh dari belakang, atau pemandangan/bangunan.
 - "image_prompt" harus konkret dan menggambarkan isi narasi adegan itu. Variasikan sudut kamera (close-up, wide shot, low angle, dari belakang/siluet) agar tidak monoton. Jangan ada teks atau huruf di dalam gambar.
 - Jangan menggambarkan orang sungguhan secara spesifik; gunakan tokoh gambar/siluet anonim. Hindari gore dan kekerasan grafis, SARA, dan konten untuk anak.
 - "motion": pilih gerak kamera yang cocok (zoom_in untuk ketegangan, pan untuk memperlihatkan tempat, tilt untuk bangunan/langit); variasikan antar adegan.
@@ -173,6 +176,7 @@ Balas HANYA JSON dengan bentuk:
         s["keywords"] = [kw] if isinstance(kw, str) else list(kw)
         s["onscreen"] = (s.get("onscreen") or "").strip()
         s["image_prompt"] = (s.get("image_prompt") or "").strip()
+        s["impact_word"] = (s.get("impact_word") or "").strip().split(" ")[0]
 
         vis = s.get("visual", "illustration")
         if vis == "footage" and (i in (0, len(scenes) - 1) or footage_used >= 2 or not s["keywords"]):
@@ -188,6 +192,12 @@ Balas HANYA JSON dengan bentuk:
         if s.get("motion") not in MOTIONS:
             s["motion"] = MOTIONS[i % len(MOTIONS)]
 
+    kept = 0
+    for s in scenes:  # batasi kata raksasa maksimal 6 per video
+        if s["impact_word"]:
+            kept += 1
+            if kept > 6:
+                s["impact_word"] = ""
     data["character"] = (data.get("character") or "").strip()
     data["topic"] = topic
     data["source_urls"] = source_urls

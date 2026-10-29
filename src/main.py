@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import captions
 import editor
 import footage
+import fx
 import illustrator
 import script_agent
 import voice
@@ -61,12 +62,16 @@ def main():
     print("== 4/6 Footage ==")
     credits = footage.fetch_all(script, cfg, work)
 
-    print("== 5/6 Typography ==")
+    print("== 5/6 Typography, efek & suara ==")
+    editor.plan_shots(script)
+    impacts = captions.impact_events(script)
     captions.build_ass(script, cfg, work / "captions.ass")
+    fxp = fx.make_overlays(work)
+    sfx = fx.build_sfx(editor.sfx_events(script, impacts), script["total_duration"], work / "sfx.wav")
 
     print("== 6/6 Render ==")
     video = out_dir / "video.mp4"
-    editor.render(script, cfg, args.theme, narration, "captions.ass", work, video)
+    editor.render(script, cfg, args.theme, narration, "captions.ass", work, video, fxp, sfx)
 
     # --- file pendukung untuk upload manual ---
     tags = " ".join(script.get("hashtags", []))
@@ -88,7 +93,7 @@ def main():
     slim = {k: v for k, v in script.items() if k != "scenes"}
     slim["scenes"] = [
         {"narration": s["narration"], "visual": s["visual"], "image_prompt": s["image_prompt"],
-         "keywords": s["keywords"], "motion": s["motion"],
+         "keywords": s["keywords"], "motion": s["motion"], "impact_word": s["impact_word"],
          "onscreen": s["onscreen"], "duration": round(s["duration"], 2)}
         for s in script["scenes"]
     ]
