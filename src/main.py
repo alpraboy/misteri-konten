@@ -55,7 +55,7 @@ def main():
     tags = " ".join(script.get("hashtags", []))
     caption_txt = (
         f"{script['title']}\n\n{script.get('caption', '')}\n\n"
-        f"{cfg['disclaimer']}\n\n{tags}\n\nFootage: Pexels"
+        f"{cfg['disclaimer']}\n\n{tags}\n\nFootage: Pixabay/Pexels"
     )
     (out_dir / "caption.txt").write_text(caption_txt, encoding="utf-8")
 
