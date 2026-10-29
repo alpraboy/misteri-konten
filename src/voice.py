@@ -6,7 +6,7 @@ import edge_tts
 
 from util import run, duration
 
-PAD = 0.30  # jeda di akhir tiap adegan (detik)
+PAD = 0.20  # jeda di akhir tiap adegan (detik)
 
 
 async def _tts(text, voice, rate, mp3_path):
@@ -36,7 +36,7 @@ def _even_words(text, dur):
     return [{"text": t, "start": i * step, "end": (i + 1) * step} for i, t in enumerate(toks)]
 
 
-def synthesize(script, cfg, work: Path):
+def synthesize(script, cfg, work: Path, rate=None):
     """Isi tiap scene dengan: wav, duration, start (global), words (global)."""
     work.mkdir(parents=True, exist_ok=True)
     t0 = 0.0
@@ -48,7 +48,7 @@ def synthesize(script, cfg, work: Path):
         words = []
         for attempt in range(3):
             try:
-                words = asyncio.run(_tts(sc["narration"], cfg["voice"], cfg["rate"], mp3))
+                words = asyncio.run(_tts(sc["narration"], cfg["voice"], rate or cfg["rate"], mp3))
                 if mp3.stat().st_size > 0:
                     break
             except Exception as e:  # jaringan/Edge kadang gagal sesaat

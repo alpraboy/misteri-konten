@@ -150,7 +150,7 @@ Gaya visual: komik tinta hitam-putih (graphic novel) dengan satu warna aksen.
 {material}
 
 Aturan:
-- Total narasi 130-155 kata (muat sekitar 60 detik), dibagi 8-10 adegan.
+- Total narasi 105-120 kata (JANGAN lebih dari 125; harus muat 55-60 detik), dibagi 8-10 adegan.
 - Adegan 1 adalah HOOK 1-2 kalimat yang membuat orang berhenti scroll. Adegan terakhir: penutup/pertanyaan terbuka.
 - "character": buat SATU tokoh utama bila ceritanya butuh tokoh (deskripsi visual tetap, bahasa Inggris). Set "with_character": true pada adegan yang menampilkan tokoh itu.
 - Hampir semua adegan "visual": "illustration". Gunakan "footage" PALING BANYAK 2 adegan di tengah, hanya untuk suasana umum yang mudah dicari di stok video (mis. "foggy forest", "ocean waves", "night sky"); isi "keywords" 2 alternatif berbahasa Inggris. Adegan pertama dan terakhir harus illustration.

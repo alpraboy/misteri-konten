@@ -42,7 +42,14 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("== 2/6 Suara ==")
-    narration = voice.synthesize(script, cfg, work)
+    rate = cfg["rate"]
+    narration = voice.synthesize(script, cfg, work, rate)
+    if script["total_duration"] > 61:  # terlalu panjang -> percepat suara agar muat ~58 detik
+        cur = 1 + int(rate.replace("%", "")) / 100
+        new = min(cur * script["total_duration"] / 58.0, 1.30)
+        rate = f"{round((new - 1) * 100):+d}%"
+        print(f"Narasi {script['total_duration']:.1f} dtk > 61 dtk -> ulang suara dengan rate {rate}")
+        narration = voice.synthesize(script, cfg, work, rate)
 
     has_footage_key = bool(os.environ.get("PIXABAY_API_KEY") or os.environ.get("PEXELS_API_KEY"))
     if not has_footage_key:  # tanpa key footage: semua adegan jadi ilustrasi

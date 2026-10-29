@@ -4,13 +4,18 @@ import unicodedata
 
 
 def run(cmd, cwd=None):
-    """Jalankan perintah; tampilkan error asli bila gagal."""
+    """Jalankan perintah; bila gagal tampilkan error asli (tanpa baris progres ffmpeg)."""
     cmd = [str(c) for c in cmd]
     print("$", " ".join(cmd)[:300])
     r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if r.returncode != 0:
-        print(r.stderr[-3000:])
-        raise RuntimeError(f"Perintah gagal: {cmd[0]}")
+        lines = [
+            ln for ln in r.stderr.replace("\r", "\n").split("\n")
+            if ln.strip() and not ln.startswith("frame=")
+        ]
+        print(f"=== GAGAL (kode keluar {r.returncode}) ===")
+        print("\n".join(lines[-40:]))
+        raise RuntimeError(f"Perintah gagal: {cmd[0]} (kode {r.returncode})")
     return r.stdout
 
 

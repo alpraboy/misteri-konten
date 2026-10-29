@@ -74,7 +74,7 @@ def sfx_events(script, impacts):
 
 # ------------------------------------------------------------------ klip
 def _finish(cfg):
-    parts = [cfg["style"]["grade"], "noise=alls=12:allf=t+u"]
+    parts = [cfg["style"]["grade"]]
     if cfg["style"].get("flicker"):
         parts.append("eq=brightness='0.04*sin(37*t)*sin(11*t)':eval=frame")
     parts.append("format=yuv420p")
@@ -99,7 +99,7 @@ def shot_clip(img, shot, first_in_scene, length, cfg, fxp, out):
     )
     if spec.get("impact"):
         base += ",fade=t=in:st=0:d=0.12:color=white"
-    enc = ["-frames:v", d, "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", out]
+    enc = ["-frames:v", d, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", out]
 
     if spec.get("impact"):  # tambahkan garis kecepatan yang berkedip bergantian
         fc = (
@@ -119,18 +119,25 @@ def shot_clip(img, shot, first_in_scene, length, cfg, fxp, out):
 
 
 def video_clip(src, dur, idx, cfg, out):
-    zoom = 0.10
-    z = f"(1+{zoom}*t/{dur:.3f})" if idx % 2 == 0 else f"({1 + zoom}-{zoom}*t/{dur:.3f})"
+    """Footage: zoom pelan via zoompan; bila gagal, coba versi polos tanpa zoom."""
+    n = max(int(round(dur * FPS)), 3)
+    z = f"1+0.10*on/{n}" if idx % 2 == 0 else f"1.10-0.10*on/{n}"
+    enc = ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", out]
+    look = f"{FOOTAGE_LOOK},{_finish(cfg)}"
     vf = (
-        "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,"
-        f"fps={FPS},"
-        f"scale=w='trunc(1080*{z}/2)*2':h='trunc(1920*{z}/2)*2':eval=frame,"
-        f"crop=1080:1920,{FOOTAGE_LOOK},{_finish(cfg)}"
+        "scale=1620:2880:force_original_aspect_ratio=increase,crop=1620:2880,setsar=1,"
+        f"fps={FPS},zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps={FPS},"
+        f"{look}"
     )
-    run([
-        "ffmpeg", "-y", "-stream_loop", "-1", "-i", src, "-t", f"{dur:.3f}",
-        "-an", "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", out,
-    ])
+    try:
+        run(["ffmpeg", "-y", "-stream_loop", "-1", "-i", src, "-t", f"{dur:.3f}", "-vf", vf, *enc])
+    except RuntimeError:
+        print("Footage zoom gagal -> memakai versi polos tanpa zoom")
+        plain = (
+            "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,"
+            f"fps={FPS},{look}"
+        )
+        run(["ffmpeg", "-y", "-stream_loop", "-1", "-i", src, "-t", f"{dur:.3f}", "-vf", plain, *enc])
 
 
 def _concat(files, out):
@@ -167,7 +174,11 @@ def render(script, cfg, theme, narration, ass_name, work: Path, out: Path, fxp, 
             for j, sh in enumerate(shots):
                 length = sh["dur"] + (extra if j == len(shots) - 1 else 0)
                 f = work / f"shot{i:02d}_{j}.mp4"
-                shot_clip(sc["image"], sh, j == 0, length, cfg, fxp, f)
+                try:
+                    shot_clip(sc["image"], sh, j == 0, length, cfg, fxp, f)
+                except RuntimeError:
+                    print(f"Bidikan {i}-{j} gagal -> diganti bidikan sederhana")
+                    shot_clip(sc["image"], dict(sh, name="wide_in"), False, length, cfg, fxp, f)
                 parts.append(f)
             _concat(parts, clip)
         else:
@@ -215,14 +226,15 @@ def render(script, cfg, theme, narration, ass_name, work: Path, out: Path, fxp, 
         )
         prev = f"x{k + 1}"
     chains.append(f"[{prev}][{i_ovl}:v]overlay=0:0:format=auto[vo]")
-    chains.append(f"[vo]ass={ass_name}[v]")
+    chains.append("[vo]noise=alls=7:allf=t[vn]")
+    chains.append(f"[vn]ass={ass_name}[v]")
     chains.append(audio)
 
     cmd += [
         "-filter_complex", ";".join(chains), "-map", "[v]", "-map", "[a]",
         "-t", f"{script['total_duration']:.3f}",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out.resolve(),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-maxrate", "14M", "-bufsize", "28M",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out.resolve(),
     ]
     run(cmd, cwd=work)  # cwd = work agar "ass=captions.ass" ditemukan
 
