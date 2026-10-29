@@ -45,7 +45,7 @@ Tokoh dibuat per cerita, gayanya sama. Typography: judul "stiker komik" + subtit
 - **B — Visual mengikuti cerita:** prompt storyboard diarahkan untuk menggambarkan isi narasi secara spesifik. Setiap adegan menambahkan informasi visual baru, menjaga konsistensi palet, era, cuaca dan tokoh, serta memakai transisi dissolve yang tenang.
 - **C — Identitas Agen Misteri:** penanda brand kecil, judul pembuka sederhana, subtitle stabil tanpa efek memantul, dan penutup ringkas. Tipografi tidak lagi membanting atau bergetar.
 - Tidak ada whoosh/hit, kilatan putih, garis kecepatan, getaran kamera, atau noise film. Hanya narasi dan musik latar lembut (jika tersedia); musik otomatis diredam saat narasi.
-- Tempo suara dibuat lebih santai dan jeda antarscene diperpanjang. Jika video melewati 60 detik, jangan memaksa narasi dipercepat; rapikan naskah.
+- Tempo suara dibuat lebih santai dan jeda antarscene diperpanjang. Target v6 adalah 60–90 detik. Jika durasi di luar rentang, rapikan naskah; jangan memaksa narasi dipercepat.
 - Gambar lebih baik bila memakai key gratis dari https://enter.pollinations.ai: simpan sebagai secret `POLLINATIONS_API_KEY` (model default `flux`).
 
 ### Catatan V6
@@ -61,3 +61,7 @@ Tokoh dibuat per cerita, gayanya sama. Typography: judul "stiker komik" + subtit
 - `verify.md` menampilkan kecocokan kata dengan bahan sumber sebagai sinyal awal, bukan bukti kebenaran. Periksa klaim faktual secara manual pada sumber asli sebelum unggah.
 - `retention_report.md` membantu pemeriksaan editorial; data retensi penonton sesungguhnya hanya tersedia dari analitik platform setelah video diterbitkan.
 - Target 60–90 detik adalah sasaran, bukan jaminan. TTS, jeda, dan panjang kalimat dapat memengaruhi durasi akhir.
+
+
+### Pemulihan saat layanan ilustrasi bermasalah
+Jika API ilustrasi membalas HTTP 5xx atau koneksi berulang kali gagal, v6 menghentikan percobaan berulang dan membuat kartu visual cinematic lokal agar render dapat berlanjut. Kartu ini bukan ilustrasi AI spesifik; `verify.md` dan `script.json` menandai adegan fallback agar kreator bisa menggantinya sebelum upload. Untuk gambar AI sesuai prompt, jalankan ulang ketika layanan ilustrasi pulih atau gunakan penyedia gambar lain.

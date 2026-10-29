@@ -59,11 +59,14 @@ def main():
 
     print("== 3/6 Ilustrasi ==")
     failed = illustrator.generate_all(script, cfg, work)
-    for i in failed:  # ilustrasi gagal -> pakai footage sebagai cadangan
+    for i in failed:  # kompatibilitas dengan provider lama
         if not has_footage_key:
             raise RuntimeError(f"Ilustrasi adegan {i} gagal dan tidak ada key footage sebagai cadangan.")
         script["scenes"][i]["visual"] = "footage"
         print(f"Adegan {i} dialihkan ke footage.")
+    fallback_count = sum(1 for sc in script["scenes"] if sc.get("image_fallback"))
+    if fallback_count:
+        print(f"PERINGATAN: {fallback_count} adegan memakai kartu visual cinematic lokal, bukan ilustrasi AI spesifik. Render tetap berjalan; periksa sebelum upload.")
 
     print("== 4/6 Footage ==")
     credits = footage.fetch_all(script, cfg, work)
@@ -89,6 +92,12 @@ def main():
 
     verify = ["# Validasi sumber sebelum upload\n", f"Tema: {cfg['label']}  |  Topik: {script['topic']}\n",
               f"Durasi audio: {actual_duration:.1f} detik | Target 60-90 detik: {duration_status}\n"]
+    verify.append("## Status visual\n")
+    fallback_scenes = [i for i, sc in enumerate(script.get("scenes", [])) if sc.get("image_fallback")]
+    if fallback_scenes:
+        verify.append(f"PERINGATAN: adegan dengan fallback visual lokal (bukan gambar AI spesifik): {', '.join(map(str, fallback_scenes))}. Ganti visual ini sebelum upload bila membutuhkan ilustrasi literal.\n")
+    else:
+        verify.append("Tidak ada fallback visual lokal yang ditandai.\n")
     verify.append("## Status validasi otomatis\n")
     verify.append("Validasi otomatis memeriksa keberadaan sumber, konsistensi metadata, dan kemiripan kata kunci; ini BUKAN verifikasi kebenaran fakta. Klaim faktual tetap wajib diperiksa manusia pada sumber asli.\n")
     source_text = (script.get("source_evidence") or "").lower()
@@ -139,7 +148,7 @@ def main():
         {"narration": s["narration"], "visual": s["visual"], "image_prompt": s["image_prompt"],
          "keywords": s["keywords"], "motion": s["motion"], "impact_word": s["impact_word"],
          "onscreen": s["onscreen"], "beat": s.get("beat", "clue"),
-         "visual_role": s.get("visual_role", "establishing"), "duration": round(s["duration"], 2)}
+         "visual_role": s.get("visual_role", "establishing"), "image_fallback": bool(s.get("image_fallback", False)), "duration": round(s["duration"], 2)}
         for s in script["scenes"]
     ]
     (out_dir / "script.json").write_text(json.dumps(slim, ensure_ascii=False, indent=2), encoding="utf-8")

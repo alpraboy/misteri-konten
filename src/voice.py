@@ -78,6 +78,8 @@ def synthesize(script, cfg, work: Path, rate=None):
     run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", out])
     script["total_duration"] = t0
     print(f"Durasi total narasi: {t0:.1f} detik")
-    if t0 > 62:
-        print("PERINGATAN: lebih dari ~60 detik. Pertimbangkan memperpendek skrip.")
+    if not 60 <= t0 <= 90:
+        print(f"PERINGATAN: durasi {t0:.1f} detik di luar target v6 60-90 detik; jangan percepat suara secara paksa.")
+    else:
+        print("Durasi sesuai target v6: 60-90 detik.")
     return out
