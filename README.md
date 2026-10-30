@@ -1,3 +1,7 @@
+# Agen Misteri v6.3 — visual relevance & subtitle-safe patch
+
+Patch ini mengembalikan motion/typography editor ke baseline v5, membatasi panjang baris subtitle secara eksplisit, dan menolak footage dengan metadata yang tidak cukup relevan. Footage yang tidak cocok tidak akan diganti dengan kata kunci generik; proses berhenti dengan error yang menjelaskan adegan mana perlu diperbaiki.
+
 # Agen Misteri Cinematic v6 — Retention Engine (Sejarah / Cerita / Berita)
 
 Pipeline video vertikal 9:16 dengan target durasi 60–90 detik, cinematic + motion graphics, hook terstruktur, dan laporan QA retensi. Berjalan di GitHub Actions.

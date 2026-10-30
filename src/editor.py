@@ -1,14 +1,13 @@
 """Cinematic documentary editor: slow motivated camera moves, gentle dissolves and clean narration-first mix."""
 import random
-import math
 from pathlib import Path
 
 from util import run
 
 FPS = 30
-T = 0.32  # transisi lembut, cukup cepat agar ritme tetap hidup
-SHOT_LEN = 5.2  # ritme visual aktif tetapi tidak gelisah
-TRANSITIONS = ["fade", "fade", "fade", "smoothleft"]  # transisi halus, variasi sesekali
+T = 0.25  # lama transisi antar adegan (detik)
+SHOT_LEN = 6.5  # shot lebih panjang; mengurangi rasa gelisah
+TRANSITIONS = ["fade", "fade", "fade"]  # dissolve sederhana dan konsisten
 FOOTAGE_LOOK = "eq=contrast=1.08:brightness=-0.025:saturation=0.88,vignette=PI/5"
 
 # Bidikan: zoom awal/akhir (z0,z1) dan titik fokus jendela potong (0..1) awal/akhir
@@ -38,18 +37,9 @@ def plan_shots(script):
         if not sc.get("image"):
             sc["shots"] = []
             continue
-        k = max(1, int(math.ceil(sc["duration"] / SHOT_LEN)))
+        k = max(1, int(round(sc["duration"] / SHOT_LEN)))
         base = sc["duration"] / k
-        role = str(sc.get("visual_role", "establishing")).lower()
-        beat = str(sc.get("beat", "clue")).lower()
-        if role == "evidence" or beat == "reveal":
-            first = "close_top"
-        elif role == "comparison" or beat == "complication":
-            first = "wide_out"
-        elif role == "closing" or beat == "payoff":
-            first = "wide_out"
-        else:
-            first = MOTION_TO_SHOT.get(sc.get("motion"), "wide_in")
+        first = MOTION_TO_SHOT.get(sc.get("motion"), "wide_in")
         shots = []
         for j in range(k):
             name = first if j == 0 else FILLERS[(counter + j) % len(FILLERS)]
@@ -201,7 +191,7 @@ def render(script, cfg, theme, narration, ass_name, work: Path, out: Path, fxp, 
         )
 
     chains = [
-        f"[{i}:v]fps={FPS},format=yuv420p[v{i}]"
+        f"[{i}:v]fps={FPS},settb=AVTB,setpts=PTS-STARTPTS,format=yuv420p[v{i}]"
         for i in range(n)
     ]
     prev, acc = "v0", 0.0

@@ -6,6 +6,7 @@ Pilih penyedia lewat secret yang tersedia:
 """
 import os
 import time
+import re
 from pathlib import Path
 
 import requests
@@ -35,6 +36,8 @@ def _pixabay(query, portrait=True):
             "id": f"pixabay-{h['id']}", "link": f["url"],
             "w": f["width"], "h": f["height"],
             "credit": f"{h.get('user', 'Pixabay')} ({h.get('pageURL', '')})",
+            "meta": f"{h.get('tags', '')} {h.get('pageURL', '')}",
+            "provider_ranked": False,
         })
     return out
 
@@ -62,8 +65,26 @@ def _pexels(query, portrait=True):
             "id": f"pexels-{v['id']}", "link": f["link"],
             "w": f["width"], "h": f["height"],
             "credit": f"{v.get('user', {}).get('name', 'Pexels')} ({v.get('url', '')})",
+            "meta": f"{v.get('url', '')} {v.get('alt', '')}",
+            "provider_ranked": True,
         })
     return out
+
+
+
+def _tokens(text):
+    stop = {"the", "and", "with", "from", "into", "over", "under", "for", "dark", "cinematic", "video", "footage", "night", "mystery"}
+    return {t for t in re.findall(r"[a-z0-9]+", str(text).lower()) if len(t) >= 3 and t not in stop}
+
+
+def _relevance(query, item):
+    q = _tokens(query)
+    meta = _tokens(item.get("meta", ""))
+    # Pexels often returns no descriptive metadata in its video-search payload;
+    # in that case retain the provider's query-ranked order rather than rejecting all clips.
+    if not q or not meta:
+        return 1.0 if item.get("provider_ranked", False) else 0.0
+    return len(q & meta) / len(q)
 
 
 def _provider():
@@ -97,21 +118,25 @@ def fetch_all(script, cfg, work: Path):
         return []
     search, has_portrait = _provider()
     used, credits = set(), []
-    fallback = list(cfg["fallback_keywords"])
+    # Do not fall back to generic theme keywords: they create visually unrelated scenes.
 
     for i, sc in enumerate(script["scenes"]):
         if sc.get("visual") != "footage":
             continue
         chosen = None
-        for q in list(sc["keywords"]) + fallback:
+        queries = [str(q).strip() for q in sc.get("keywords", []) if str(q).strip()]
+        for q in queries:
             for portrait in ((True, False) if has_portrait else (False,)):
                 try:
                     vids = search(q, portrait)
                 except Exception as e:
                     print(f"Pencarian '{q}' gagal: {e}")
                     continue
+                # Provider results are ranked by metadata relevance, not merely API order.
+                vids = sorted(vids, key=lambda v: _relevance(q, v), reverse=True)
                 for v in vids:
-                    if v["id"] not in used:
+                    score = _relevance(q, v)
+                    if v["id"] not in used and score >= 0.20:
                         chosen = (v, q)
                         break
                 if chosen:
@@ -120,7 +145,11 @@ def fetch_all(script, cfg, work: Path):
                 break
             time.sleep(0.7)  # hormati batas ~100 permintaan/menit
         if not chosen:
-            raise RuntimeError(f"Tidak menemukan footage untuk adegan {i}")
+            raise RuntimeError(
+                f"Tidak menemukan footage yang cukup relevan untuk adegan {i}. "
+                "Render dihentikan agar tidak memakai klip yang melenceng dari tema. "
+                "Perbaiki keywords adegan atau gunakan ilustrasi AI untuk adegan ini."
+            )
 
         v, q = chosen
         used.add(v["id"])
@@ -128,5 +157,5 @@ def fetch_all(script, cfg, work: Path):
         _download(v["link"], dest)
         sc["clip"] = str(dest)
         credits.append(v["credit"])
-        print(f"Adegan {i}: '{q}' -> {v['id']} ({v['w']}x{v['h']})")
+        print(f"Adegan {i}: '{q}' -> {v['id']} ({v['w']}x{v['h']}), relevansi metadata={_relevance(q, v):.2f}")
     return credits
