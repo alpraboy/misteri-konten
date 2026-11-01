@@ -32,6 +32,8 @@ SHOTS = {
     "detail_r":  {"z0": 1.55, "z1": 1.72, "f0": (.78, .50), "f1": (.70, .55)},
     "creep":     {"z0": 1.00, "z1": 1.42, "f0": (.5, .45), "f1": (.5, .40)},
 }
+# Peran visual adegan -> bidikan pembuka (menimpa 'motion' dari model)
+ROLE_TO_SHOT = {"establishing": "wide_out", "comparison": "wide_out", "closing": "wide_out", "evidence": "close_top"}
 MOTION_TO_SHOT = {
     "zoom_in": "wide_in", "zoom_out": "wide_out", "pan_left": "pan_left",
     "pan_right": "pan_right", "tilt_up": "tilt_up", "tilt_down": "tilt_down",
@@ -58,7 +60,7 @@ def plan_shots(script, shot_len=SHOT_LEN):
             continue
         k = max(1, int(round(sc["duration"] / shot_len)))
         base = sc["duration"] / k
-        first = MOTION_TO_SHOT.get(sc.get("motion"), "wide_in")
+        first = ROLE_TO_SHOT.get(sc.get("visual_role")) or MOTION_TO_SHOT.get(sc.get("motion"), "wide_in")
         shots, prev = [], None
         for j in range(k):
             name = first if j == 0 else SEQ[(counter + j) % len(SEQ)]

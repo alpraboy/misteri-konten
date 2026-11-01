@@ -73,6 +73,9 @@ def _gemini(prompt, temperature=0.9):
     raise RuntimeError(f"Semua model Gemini gagal. Terakhir: {last}")
 
 
+_TOPIC_EN = {}   # topik pilihan agen -> kata kunci Wikipedia Inggris (diisi saat _pick_topic)
+
+
 def _pick_topic(theme, cfg, topic):
     """Kembalikan kata kunci topik. Bila kosong, minta model mengusulkan."""
     if topic.strip():
@@ -83,9 +86,14 @@ def _pick_topic(theme, cfg, topic):
     prompt = (
         f"Hari ini {date.today().isoformat()}. Usulkan 1 topik untuk video pendek bertema "
         f"{cfg['topic_hint']} dengan latar/wilayah: {region}. "
-        'Balas JSON: {"topic": "kata kunci pencarian singkat 2-5 kata"}'
+        'Balas JSON: {"topic": "kata kunci pencarian singkat 2-5 kata", '
+        '"topic_en": "kata kunci pencarian Wikipedia bahasa Inggris 2-5 kata untuk topik yang sama"}'
     )
-    return _gemini(prompt, temperature=1.0)["topic"].strip()
+    data = _gemini(prompt, temperature=1.0)
+    chosen = str(data["topic"]).strip()
+    if str(data.get("topic_en", "")).strip():
+        _TOPIC_EN[chosen] = str(data["topic_en"]).strip()
+    return chosen
 
 
 MOTIONS = ["zoom_in", "zoom_out", "pan_left", "pan_right", "tilt_up", "tilt_down"]
@@ -129,11 +137,8 @@ def generate(theme, cfg, topic="", style=None):
             source_note = "Gunakan HANYA fakta yang ada di SUMBER. Jangan menambah tanggal, nama, atau angka dari luar sumber."
             source_urls.append(url)
         else:  # coba Wikipedia Inggris dengan kata kunci yang diterjemahkan
-            try:
-                en = _gemini(
-                    f'Terjemahkan topik ini menjadi kata kunci pencarian Wikipedia bahasa Inggris (2-5 kata): "{topic}". '
-                    'Balas JSON: {"q": "..."}', temperature=0.2)["q"]
-                res = sources.wikipedia_context(str(en), lang="en")
+            try:  # kata kunci Inggris sudah diminta saat memilih topik; tanpa panggilan Gemini baru
+                res = sources.wikipedia_context(_TOPIC_EN.get(topic, topic), lang="en")
             except Exception:
                 res = None
             if not res:

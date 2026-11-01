@@ -91,6 +91,10 @@ def _token(tok, active, emph, pop, active_c, emph_c, base_c):
     return f"{{\\c{color}\\fscx{scale}\\fscy{scale}}}{tok}"
 
 
+BEAT_LABELS = {"hook": "PERTANYAAN", "context": "KONTEKS", "clue": "PETUNJUK",
+               "complication": "KEJANGGALAN", "reveal": "PENGUNGKAPAN", "payoff": "KESIMPULAN"}
+
+
 def _timer(sec):
     """Penghitung waktu CCTV: mulai 03:33:12 AM."""
     base = 3 * 3600 + 33 * 60 + 12 + int(sec)
@@ -136,6 +140,7 @@ Style: Tag,{font},{title_size},&H00000000,&H00000000,{accent},{accent},1,0,0,0,1
 Style: Impact,{font},120,{accent},{accent},&H00000000,&H00000000,1,0,0,0,100,100,2,0,1,12,7,5,40,40,40,1
 Style: Hud,DejaVu Sans Mono,40,&H00F0F0F0,&H00F0F0F0,&H00000000,&H90000000,1,0,0,0,100,100,2,0,1,3,2,7,60,60,60,1
 Style: Rec,DejaVu Sans Mono,44,&H00F0F0F0,&H00F0F0F0,&H00000000,&H90000000,1,0,0,0,100,100,2,0,1,3,2,7,60,60,60,1
+Style: Beat,DejaVu Sans Mono,34,{accent},{accent},&H00000000,&H90000000,1,0,0,0,100,100,3,0,1,3,2,7,66,66,128,1
 Style: Stamp,DejaVu Sans Mono,100,&H002222B2,&H002222B2,&H001010A0,&H90000000,1,0,0,0,100,100,6,0,1,7,3,5,40,40,40,1
 Style: Brand,Montserrat,28,&H00FFFFFF,&H00FFFFFF,{accent},&H90000000,1,0,0,0,100,100,2,0,1,1,1,7,68,68,62,1
 Style: EndCard,{font},54,&H00FFFFFF,&H00FFFFFF,{accent},&H90000000,1,0,0,0,100,100,1,0,1,3,2,5,90,90,80,1
@@ -146,6 +151,22 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
     lines = []
     total = float(script.get("total_duration", 0))
     title = _esc(script.get("title", "Misteri yang Belum Terjawab"))
+
+    # Bilah progres tipis di tepi atas (menumbuh sepanjang video) + label tahap cerita per adegan.
+    if total > 1:
+        lines.append(
+            f"Dialogue: 6,{_t(0)},{_t(total)},Beat,,0,0,0,,"
+            f"{{\\an7\\pos(0,0)\\p1\\c{accent}\\bord0\\shad0\\clip(0,0,0,12)"
+            f"\\t(0,{int(total * 1000)},\\clip(0,0,{W},12))}}m 0 0 l {W} 0 {W} 12 0 12"
+        )
+    for sc in script.get("scenes", []):
+        label = BEAT_LABELS.get(str(sc.get("beat", "")).lower())
+        if label:
+            a = float(sc["start"]) + 0.25
+            lines.append(
+                f"Dialogue: 4,{_t(a)},{_t(a + 2.0)},Beat,,0,0,0,,"
+                f"{{\\an7\\pos(66,{150 if look == 'vhs' else 120})\\fad(200,300)\\c{active_c}}}\\h{label}"
+            )
 
     # Penanda brand kecil sepanjang video.
     if total > 1 and look != "vhs":
