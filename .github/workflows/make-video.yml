@@ -4,19 +4,28 @@ on:
   workflow_dispatch:
     inputs:
       theme:
-        description: "Tema video"
+        description: "Tema isi konten"
         type: choice
-        options: [sejarah, cerita, berita]
-        default: sejarah
+        options: [sejarah, cerita, berita, horor_nusantara, legenda_urban, kasus_tak_terpecahkan, ufo_uap, kriptid, tempat_angker, peradaban_hilang, artefak_terkutuk, fenomena_alam]
+        default: horor_nusantara
+      style:
+        description: "Style editing (auto = agen memilih satu dari 3)"
+        type: choice
+        options: [auto, MYSTERY_VHS, MYSTERY_CONSPIRACY, MYSTERY_WAYANG]
+        default: auto
       topic:
         description: "Topik (kosongkan agar agen memilih sendiri)"
         required: false
         default: ""
+  # Jadwal harian DINONAKTIFKAN agar kuota tidak terpakai saat masih uji coba.
+  # Untuk mengaktifkan (08:00 WIB), hapus tanda # pada 2 baris di bawah:
+  # schedule:
+  #   - cron: "0 1 * * *"
 
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -28,11 +37,14 @@ jobs:
       - name: Pasang ffmpeg & font
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-montserrat fonts-dejavu-core
+          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-montserrat
           fc-cache -f
 
       - name: Pasang dependensi Python
         run: pip install -r requirements.txt
+
+      - name: Uji unit pipeline
+        run: python -m unittest discover -s tests -v
 
       - name: Buat video
         env:
@@ -40,9 +52,10 @@ jobs:
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
-          THEME: ${{ inputs.theme || 'sejarah' }}
+          THEME: ${{ inputs.theme || 'horor_nusantara' }}
+          STYLE: ${{ inputs.style || 'auto' }}
           TOPIC: ${{ inputs.topic }}
-        run: python src/main.py --theme "$THEME" --topic "$TOPIC"
+        run: python src/main.py --theme "$THEME" --style "$STYLE" --topic "$TOPIC"
 
       - name: Simpan hasil (unduh dari tab Artifacts)
         uses: actions/upload-artifact@v4
