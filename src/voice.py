@@ -9,11 +9,11 @@ from util import run, duration
 PAD = 0.48  # jeda alami antarscene agar narasi punya ruang bernapas
 
 
-async def _tts(text, voice, rate, mp3_path):
+async def _tts(text, voice, rate, mp3_path, pitch="+0Hz"):
     try:
-        comm = edge_tts.Communicate(text, voice, rate=rate, boundary="WordBoundary")
+        comm = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch, boundary="WordBoundary")
     except TypeError:  # edge-tts versi lama
-        comm = edge_tts.Communicate(text, voice, rate=rate)
+        comm = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
     words = []
     with open(mp3_path, "wb") as f:
         async for chunk in comm.stream():
@@ -48,7 +48,7 @@ def synthesize(script, cfg, work: Path, rate=None):
         words = []
         for attempt in range(3):
             try:
-                words = asyncio.run(_tts(sc["narration"], cfg["voice"], rate or cfg["rate"], mp3))
+                words = asyncio.run(_tts(sc["narration"], cfg["voice"], rate or cfg["rate"], mp3, cfg.get("pitch", "+0Hz")))
                 if mp3.stat().st_size > 0:
                     break
             except Exception as e:  # jaringan/Edge kadang gagal sesaat

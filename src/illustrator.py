@@ -1,9 +1,14 @@
-"""Agen ilustrasi: komik tinta hitam-putih + satu warna aksen, via Pollinations (tanpa key).
+"""Agen ilustrasi v7: komik tinta hitam-putih bergaya horor gotik, via Pollinations.
+
+Setiap gambar diproses ulang (grayscale + kontras + duotone 'tinta di kertas tua') supaya
+seluruh adegan tampil seragam, dengan sedikit warna aksen dipertahankan bila ada.
 
 Konsistensi: awalan gaya yang sama di semua adegan, deskripsi tokoh yang sama,
 dan seed yang sama dalam satu video.
 Batas anonim Pollinations sekitar 1 permintaan / 15 detik, jadi ada jeda.
 """
+import colorsys
+import math
 import os
 import random
 import time
@@ -11,7 +16,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import requests
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 GEN = "https://gen.pollinations.ai/image/"        # endpoint resmi (pakai key gratis)
 LEGACY = "https://image.pollinations.ai/prompt/"  # cadangan tanpa key
@@ -20,17 +25,25 @@ GAP = 2           # jeda pendek; layanan yang gagal diputus dengan circuit break
 REMOTE_BROKEN = False
 
 STYLE = (
-    "cinematic documentary still blended with refined motion-graphics art direction, "
-    "photorealistic atmospheric lighting with subtle graphic-novel texture, controlled contrast, "
-    "deep shadows and one restrained {accent} accent on a relevant clue, "
-    "clear foreground midground background, one clear focal subject, vertical 9:16 composition, "
-    "editorial documentary framing, realistic material detail, no text, no letters, no watermark"
+    "black and white horror ink illustration, gothic graphic novel panel, "
+    "heavy black ink, dense crosshatching, woodcut linocut texture, dramatic chiaroscuro, "
+    "eerie fog, deep black shadows, high contrast, grayscale, "
+    "a faint {accent} glow on one key element only, "
+    "one clear focal subject, simple readable composition, vertical 9:16, "
+    "no text, no letters, no watermark, not a photograph"
 )
 
 EXT = {"image/png": ".png", "image/webp": ".webp"}
 
 
 def build_prompt(script, cfg, sc):
+    """Susun prompt: template style (prefix + isi adegan + suffix). Tanpa 'visual' -> gaya komik lama."""
+    v = cfg.get("visual")
+    if v:
+        core = sc["image_prompt"]
+        if sc.get("with_character") and script.get("character"):
+            core = f"{core}, featuring {script['character']}"
+        return f"{v['prefix']}{core}{v['suffix']}"[:900]
     parts = [STYLE.format(accent=cfg["style"]["accent_prompt"])]
     if sc.get("with_character") and script.get("character"):
         parts.append(f"main character: {script['character']}")
@@ -38,7 +51,7 @@ def build_prompt(script, cfg, sc):
     return ", ".join(parts)[:900]
 
 
-def _fetch(prompt, seed, dest_stem: Path):
+def _fetch(prompt, seed, dest_stem: Path, negative=""):
     """Fetch remote image briefly; stop retry storms when provider returns server errors."""
     global REMOTE_BROKEN
     if REMOTE_BROKEN:
@@ -58,6 +71,8 @@ def _fetch(prompt, seed, dest_stem: Path):
             params["private"] = "true"
         if model:
             params["model"] = model
+        if negative and use_key:  # negative_prompt didukung model flux/zimage di endpoint resmi
+            params["negative_prompt"] = negative
         try:
             r = requests.get(url, params=params, headers=headers, timeout=(8, 45))
             ctype = r.headers.get("content-type", "").split(";")[0].strip()
@@ -83,6 +98,65 @@ def _fetch(prompt, seed, dest_stem: Path):
                 return None
         time.sleep(2 * (attempt + 1))
     return None
+
+
+def _curve(x):
+    """Kurva-S yang menggelapkan bayangan: hitam lebih pekat, putih tetap bersih."""
+    x = x ** 1.05
+    return 0.5 + 0.5 * math.tanh((x - 0.5) * 2.6) / math.tanh(1.3)
+
+
+def _selective_accent(orig, base, rgb):
+    """Pertahankan warna HANYA di area yang berwarna aksen (gaya 'selective color')."""
+    hue = colorsys.rgb_to_hsv(*(c / 255 for c in rgb))[0] * 255
+    h, s, v = orig.convert("HSV").split()
+
+    def near(val):
+        d = abs(val - hue)
+        return 255 if min(d, 256 - d) <= 34 else 0
+
+    mh = h.point([near(i) for i in range(256)])
+    ms = s.point([255 if i > 120 else 0 for i in range(256)])
+    mv = v.point([255 if i > 70 else 0 for i in range(256)])
+    mask = ImageChops.multiply(ImageChops.multiply(mh, ms), mv)
+    cover = mask.histogram()[255] / float(mask.size[0] * mask.size[1])
+    if cover < 0.003 or cover > 0.28:   # tak ada aksen / seluruh gambar berwarna -> hitam-putih murni
+        return base
+    mask = mask.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(3))
+    return Image.composite(ImageEnhance.Color(orig).enhance(1.15), base, mask)
+
+
+def postprocess(path: Path, cfg, idx: int = 0, seed: int = 1) -> Path:
+    """Pasca-proses gambar. Bila cfg punya 'look' (vhs/conspiracy/wayang) pakai looks.py."""
+    if cfg.get("look"):
+        try:
+            import looks
+            return looks.process(path, cfg["look"], idx, seed)
+        except Exception as e:
+            print(f"  look '{cfg['look']}' gagal ({type(e).__name__}: {e}); memakai gambar asli")
+            return path
+    return _postprocess_ink(path, cfg)
+
+
+def _postprocess_ink(path: Path, cfg) -> Path:
+    """Seragamkan tampilan: grayscale -> kontras -> duotone tinta/kertas (+ aksen selektif)."""
+    st = cfg["style"]
+    duo = st.get("duotone", {})
+    black = tuple(duo.get("black", (6, 5, 8)))
+    white = tuple(duo.get("white", (228, 218, 200)))
+    try:
+        im = Image.open(path).convert("RGB")
+        gray = ImageOps.autocontrast(ImageOps.grayscale(im), cutoff=1)
+        gray = gray.point([int(255 * _curve(i / 255.0)) for i in range(256)])
+        out = ImageOps.colorize(gray, black=black, white=white)
+        if st.get("accent_rgb"):
+            out = _selective_accent(im, out, st["accent_rgb"])
+        dest = path.with_suffix(".jpg")
+        out.save(dest, "JPEG", quality=95)
+        return dest
+    except Exception as e:  # jangan hentikan render hanya karena pasca-proses gagal
+        print(f"  pasca-proses gagal ({type(e).__name__}); memakai gambar asli")
+        return path
 
 
 def _local_cinematic_fallback(prompt: str, dest: Path, seed: int) -> Path:
@@ -151,8 +225,9 @@ def generate_all(script, cfg, work: Path):
             continue
         prompt = build_prompt(script, cfg, sc)
         print(f"Ilustrasi AI adegan {i}: {sc['image_prompt'][:80]}")
-        path = _fetch(prompt, seed + i, work / f"img{i:02d}")
+        path = _fetch(prompt, seed + i, work / f"img{i:02d}", cfg.get("visual", {}).get("negative", ""))
         if path:
+            path = postprocess(path, cfg, i, seed)
             sc["image"] = str(path)
             sc["image_fallback"] = False
         else:

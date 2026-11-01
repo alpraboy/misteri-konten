@@ -110,52 +110,70 @@ def _download(url, dest: Path):
     raise RuntimeError(f"Gagal mengunduh {url}")
 
 
+def _choose(search, has_portrait, queries, used):
+    """Pilih klip paling relevan (>= 0.20) yang belum dipakai; None bila tidak ada."""
+    for q in queries:
+        for portrait in ((True, False) if has_portrait else (False,)):
+            try:
+                vids = search(q, portrait)
+            except Exception as e:
+                print(f"Pencarian '{q}' gagal: {e}")
+                continue
+            vids = sorted(vids, key=lambda v: _relevance(q, v), reverse=True)
+            for v in vids:
+                if v["id"] not in used and _relevance(q, v) >= 0.20:
+                    return v, q
+        time.sleep(0.7)  # hormati batas ~100 permintaan/menit
+    return None
+
+
 def fetch_all(script, cfg, work: Path):
-    """Isi tiap scene dengan 'clip' (path file). Kembalikan daftar kredit."""
+    """Unduh footage. Dua jenis:
+    - visual == 'footage'  : pengganti ilustrasi yang gagal (WAJIB; gagal -> berhenti)
+    - broll_keywords       : inset kecil di beberapa adegan (OPSIONAL; gagal -> dilewati)
+    Kembalikan daftar kredit."""
     work.mkdir(parents=True, exist_ok=True)
-    wanted = [i for i, sc in enumerate(script["scenes"]) if sc.get("visual") == "footage"]
+    scenes = script["scenes"]
+    wanted = [i for i, sc in enumerate(scenes) if sc.get("visual") == "footage" or sc.get("broll_keywords")]
     if not wanted:
         return []
-    search, has_portrait = _provider()
-    used, credits = set(), []
-    # Do not fall back to generic theme keywords: they create visually unrelated scenes.
+    try:
+        search, has_portrait = _provider()
+    except RuntimeError:
+        if any(sc.get("visual") == "footage" for sc in scenes):
+            raise
+        print("Tidak ada API footage -> b-roll inset dilewati.")
+        return []
 
-    for i, sc in enumerate(script["scenes"]):
-        if sc.get("visual") != "footage":
-            continue
-        chosen = None
-        queries = [str(q).strip() for q in sc.get("keywords", []) if str(q).strip()]
-        for q in queries:
-            for portrait in ((True, False) if has_portrait else (False,)):
-                try:
-                    vids = search(q, portrait)
-                except Exception as e:
-                    print(f"Pencarian '{q}' gagal: {e}")
-                    continue
-                # Provider results are ranked by metadata relevance, not merely API order.
-                vids = sorted(vids, key=lambda v: _relevance(q, v), reverse=True)
-                for v in vids:
-                    score = _relevance(q, v)
-                    if v["id"] not in used and score >= 0.20:
-                        chosen = (v, q)
-                        break
-                if chosen:
-                    break
-            if chosen:
-                break
-            time.sleep(0.7)  # hormati batas ~100 permintaan/menit
+    used, credits = set(), []
+    for i in wanted:
+        sc = scenes[i]
+        required = sc.get("visual") == "footage"
+        queries = [str(q).strip() for q in (sc.get("keywords") if required else sc.get("broll_keywords")) or [] if str(q).strip()]
+        chosen = _choose(search, has_portrait, queries, used)
         if not chosen:
-            raise RuntimeError(
-                f"Tidak menemukan footage yang cukup relevan untuk adegan {i}. "
-                "Render dihentikan agar tidak memakai klip yang melenceng dari tema. "
-                "Perbaiki keywords adegan atau gunakan ilustrasi AI untuk adegan ini."
-            )
+            if required:
+                raise RuntimeError(
+                    f"Tidak menemukan footage yang cukup relevan untuk adegan {i}. "
+                    "Render dihentikan agar tidak memakai klip yang melenceng dari tema. "
+                    "Perbaiki keywords adegan atau gunakan ilustrasi AI untuk adegan ini."
+                )
+            print(f"B-roll adegan {i} dilewati (tidak ada klip yang cukup relevan).")
+            sc["broll_keywords"] = []
+            continue
 
         v, q = chosen
         used.add(v["id"])
-        dest = work / f"clip{i:02d}.mp4"
-        _download(v["link"], dest)
-        sc["clip"] = str(dest)
+        dest = work / f"{'clip' if required else 'broll'}{i:02d}.mp4"
+        try:
+            _download(v["link"], dest)
+        except RuntimeError:
+            if required:
+                raise
+            print(f"B-roll adegan {i} dilewati (unduhan gagal).")
+            continue
+        sc["clip" if required else "broll_clip"] = str(dest)
         credits.append(v["credit"])
-        print(f"Adegan {i}: '{q}' -> {v['id']} ({v['w']}x{v['h']}), relevansi metadata={_relevance(q, v):.2f}")
+        print(f"Adegan {i} ({'footage' if required else 'b-roll'}): '{q}' -> {v['id']} "
+              f"({v['w']}x{v['h']}), relevansi={_relevance(q, v):.2f}")
     return credits

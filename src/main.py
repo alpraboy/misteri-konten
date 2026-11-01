@@ -14,21 +14,26 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import captions
 import editor
+import board
 import footage
 import fx
 import illustrator
 import script_agent
+import styles
 import voice
 from util import slugify
 
 
 def main():
+    all_cfg = yaml.safe_load(Path("config/themes.yml").read_text(encoding="utf-8"))
     ap = argparse.ArgumentParser()
-    ap.add_argument("--theme", required=True, choices=["sejarah", "cerita", "berita"])
+    ap.add_argument("--theme", required=True, choices=list(all_cfg), help="nama tema di config/themes.yml")
     ap.add_argument("--topic", default="", help="kosongkan agar agen memilih sendiri")
+    ap.add_argument("--style", default="auto",
+                    help="auto (agen memilih) atau MYSTERY_VHS / MYSTERY_CONSPIRACY / MYSTERY_WAYANG")
     args = ap.parse_args()
 
-    cfg = yaml.safe_load(Path("config/themes.yml").read_text(encoding="utf-8"))[args.theme]
+    cfg = all_cfg[args.theme]
 
     work = Path("work")
     if work.exists():
@@ -36,7 +41,13 @@ def main():
     work.mkdir()
 
     print("== 1/6 Skrip & storyboard ==")
-    script = script_agent.generate(args.theme, cfg, args.topic)
+    script = script_agent.generate(args.theme, cfg, args.topic, args.style)
+    style_key = script["visual_style"]
+    cfg = styles.apply(cfg, style_key)
+    print(f"STYLE TERPILIH: {style_key} ({cfg['visual']['label']}). Alasan: {script.get('style_reason') or '-'}")
+    if cfg["look"] == "wayang":   # wayang tidak memakai footage modern
+        for sc in script["scenes"]:
+            sc["broll_keywords"] = []
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     out_dir = Path("output") / f"{stamp}-{args.theme}-{slugify(script['title'])}"
@@ -72,22 +83,28 @@ def main():
     print("== 4/6 Footage ==")
     credits = footage.fetch_all(script, cfg, work)
 
-    print("== 5/6 Cinematic typography & sound design ==")
-    editor.plan_shots(script)
-    impacts = []  # V6: tanpa SFX agresif; retensi dibangun dari cerita dan visual
+    if cfg["look"] == "conspiracy":
+        print("== Menyusun papan gabus & benang merah ==")
+        board.compose(script, cfg, work)
+
+    print("== 5/6 Tipografi kinetik, efek atmosfer & suara ==")
+    editor.plan_shots(script, cfg["style"].get("shot_len", editor.SHOT_LEN))
+    impacts = captions.impact_events(script)
     captions.build_ass(script, cfg, work / "captions.ass")
-    fxp = {"overlay": str((work / "overlay.png").resolve()), "speed_a": str((work / "speed_a.png").resolve()), "speed_b": str((work / "speed_b.png").resolve())}
-    sfx = ""  # V6: sound effect dinonaktifkan; narasi + musik lembut saja
+    fxp = fx.make_overlays(work, cfg)
+    events = editor.sfx_events(script, impacts, cfg)
+    syn = fx.build_audio(events, script["total_duration"], work / "syn.wav", cfg)
 
     print("== 6/6 Render ==")
     video = out_dir / "video.mp4"
-    editor.render(script, cfg, args.theme, narration, "captions.ass", work, video, fxp, sfx)
+    editor.render(script, cfg, args.theme, narration, "captions.ass", work, video, fxp, syn)
 
     # --- file pendukung untuk upload manual ---
     tags = " ".join(script.get("hashtags", []))
+    credit_line = "Ilustrasi dibuat dengan AI." + (" Footage: Pixabay/Pexels." if credits else "")
     caption_txt = (
         f"{script['title']}\n\n{script.get('caption', '')}\n\n"
-        f"{cfg['disclaimer']}\n\n{tags}\n\nIlustrasi dibuat dengan AI. Footage: Pixabay/Pexels"
+        f"{cfg['disclaimer']}\n\n{tags}\n\n{credit_line}"
     )
     (out_dir / "caption.txt").write_text(caption_txt, encoding="utf-8")
 
@@ -147,7 +164,8 @@ def main():
     slim = {k: v for k, v in script.items() if k not in ("scenes", "source_evidence")}
     slim["scenes"] = [
         {"narration": s["narration"], "visual": s["visual"], "image_prompt": s["image_prompt"],
-         "keywords": s["keywords"], "motion": s["motion"], "impact_word": s["impact_word"],
+         "keywords": s["keywords"], "broll_keywords": s.get("broll_keywords", []), "fx": s.get("fx", []),
+         "emphasis": s.get("emphasis", []), "motion": s["motion"], "impact_word": s["impact_word"],
          "onscreen": s["onscreen"], "beat": s.get("beat", "clue"),
          "visual_role": s.get("visual_role", "establishing"), "image_fallback": bool(s.get("image_fallback", False)), "duration": round(s["duration"], 2)}
         for s in script["scenes"]

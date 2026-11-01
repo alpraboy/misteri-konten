@@ -5,12 +5,12 @@ from urllib.parse import quote
 import requests
 
 UA = {"User-Agent": "agen-misteri/1.0 (github actions; konten edukasi)"}
-WIKI_API = "https://id.wikipedia.org/w/api.php"
 
 
-def wikipedia_context(query, max_chars=6000):
-    """Cari artikel Wikipedia Indonesia, kembalikan (judul, teks, url) atau None."""
-    r = requests.get(WIKI_API, params={
+def wikipedia_context(query, max_chars=6000, lang="id"):
+    """Cari artikel Wikipedia (default Indonesia), kembalikan (judul, teks, url) atau None."""
+    api = f"https://{lang}.wikipedia.org/w/api.php"
+    r = requests.get(api, params={
         "action": "query", "list": "search", "srsearch": query,
         "format": "json", "srlimit": 1,
     }, headers=UA, timeout=25)
@@ -20,7 +20,7 @@ def wikipedia_context(query, max_chars=6000):
         return None
     title = hits[0]["title"]
 
-    r = requests.get(WIKI_API, params={
+    r = requests.get(api, params={
         "action": "query", "prop": "extracts", "explaintext": 1,
         "exsectionformat": "plain", "titles": title, "redirects": 1,
         "format": "json",
@@ -30,7 +30,7 @@ def wikipedia_context(query, max_chars=6000):
     text = next(iter(pages.values())).get("extract", "")
     if not text.strip():
         return None
-    url = "https://id.wikipedia.org/wiki/" + quote(title.replace(" ", "_"))
+    url = f"https://{lang}.wikipedia.org/wiki/" + quote(title.replace(" ", "_"))
     return title, text[:max_chars], url
 
 

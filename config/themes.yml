@@ -1,71 +1,302 @@
-# Agen Misteri v6: cinematic documentary + restrained motion graphics.
-# Warna ASS memakai format &HBBGGRR& (biru-hijau-merah).
+# Agen Misteri v7: komik tinta hitam-putih + horor mistis. Satu blok per tema.
+# Tambah tema baru dengan menyalin satu blok. Warna ASS = &H00BBGGRR&.
 
 sejarah:
   label: "Sejarah Misteri"
-  source: wikipedia            # fakta diambil dari Wikipedia agar tidak mengarang
+  source: wikipedia   # wikipedia | news | none (fiksi/legenda)
   voice: id-ID-ArdiNeural
   rate: "-10%"
-  tone: >
-    Narator dokumenter yang tenang dan berwibawa. Fokus pada fakta sejarah yang
-    belum terjawab, teori yang beredar, dan apa yang masih menjadi tanda tanya.
+  tone: "Narator dokumenter gelap yang tenang dan berwibawa. Fokus pada fakta sejarah yang belum terjawab, teori yang beredar, dan apa yang masih menjadi tanda tanya."
   topic_hint: "misteri sejarah yang belum terpecahkan"
   regions: ["Nusantara", "Indonesia", "Eropa", "Mesir kuno", "Asia", "Amerika", "Timur Tengah"]
   disclaimer: "Ringkasan dari sumber terbuka; sebagian masih teori dan belum terbukti."
   style:
     font: "DejaVu Serif"
-    size: 74
-    title_size: 64
-    color: "&H0000B0FF&"       # aksen amber (kata aktif + kotak judul)
+    size: 70
+    title_size: 58
+    color: "&H0000B0FF&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [255, 176, 0]
     accent_prompt: "warm amber"
-    motion_accent: "#FFB000"
     uppercase: false
-    flicker: false
-    grade: "eq=contrast=1.05,vignette=PI/4"
+    flicker: false        # cahaya berkedip tipis
+    heartbeat: false      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.10:brightness=-0.04:saturation=0.95"
+    fx_default: ["fog", "dust"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 49, wind: 0.4}
   fallback_keywords: ["ancient ruins fog", "old map parchment", "dark old library", "stone temple mist"]
 
 cerita:
   label: "Cerita Misteri"
-  source: none                 # fiksi / legenda, wajib diberi label di caption
+  source: none   # wikipedia | news | none (fiksi/legenda)
   voice: id-ID-ArdiNeural
   rate: "-10%"
-  tone: >
-    Pencerita horor-misteri yang pelan dan menegangkan. Bangun suasana, beri
-    plot twist di akhir. Boleh legenda/cerita rakyat atau cerita orisinal.
+  tone: "Pencerita horor-misteri yang pelan dan menegangkan. Bangun suasana, beri plot twist di akhir. Boleh legenda/cerita rakyat atau cerita orisinal."
   topic_hint: "legenda atau cerita misteri yang menyeramkan"
   regions: ["Jawa", "Sumatra", "Kalimantan", "Sulawesi", "Eropa", "Jepang", "Amerika"]
   disclaimer: "Ini kisah/legenda/fiksi untuk hiburan, bukan fakta."
   style:
-    font: "Montserrat"
-    size: 80
-    title_size: 62
-    color: "&H003C14DC&"       # aksen merah darah
-    accent_prompt: "muted crimson"
-    motion_accent: "#D94B64"
+    font: "Oswald"
+    size: 78
+    title_size: 60
+    color: "&H003C14DC&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [220, 20, 60]
+    accent_prompt: "blood red"
     uppercase: true
-    flicker: false             # tanpa kedipan agar nyaman ditonton
-    grade: "eq=contrast=1.08:brightness=-0.03,vignette=PI/3.2"
+    flicker: true        # cahaya berkedip tipis
+    heartbeat: true      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.12:brightness=-0.05:saturation=0.95"
+    fx_default: ["fog", "dust"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 55, wind: 0.6}
   fallback_keywords: ["dark foggy forest night", "abandoned house night", "candle dark room", "moon clouds night"]
 
 berita:
   label: "Berita Misteri"
-  source: news                 # judul dari Google News RSS, bukan karangan model
+  source: news   # wikipedia | news | none (fiksi/legenda)
   voice: id-ID-GadisNeural
   rate: "-6%"
-  tone: >
-    Pembawa berita yang lugas dan netral. Pakai kata "dilaporkan", "menurut
-    pemberitaan", "belum dapat dipastikan". Jangan menuduh orang tertentu.
+  tone: "Pembawa berita yang lugas dan netral, bernuansa misteri. Pakai kata \"dilaporkan\", \"menurut pemberitaan\", \"belum dapat dipastikan\". Jangan menuduh orang tertentu."
   topic_hint: "misteri OR fenomena aneh OR belum terpecahkan"
   news_window: "7d"
   disclaimer: "Berdasarkan pemberitaan media; belum tentu terverifikasi. Cek sumber aslinya."
   style:
-    font: "Montserrat"
-    size: 76
-    title_size: 60
-    color: "&H00A4B300&"       # aksen teal
-    accent_prompt: "cool teal"
-    motion_accent: "#28C7C9"
+    font: "Oswald"
+    size: 74
+    title_size: 58
+    color: "&H00A4B300&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [0, 179, 164]
+    accent_prompt: "cold teal"
     uppercase: true
-    flicker: false
-    grade: "eq=contrast=1.05,vignette=PI/4.5"
+    flicker: false        # cahaya berkedip tipis
+    heartbeat: false      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.08:brightness=-0.03:saturation=0.9"
+    fx_default: ["fog", "rain"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 52, wind: 0.3}
   fallback_keywords: ["city night street", "newsroom", "police lights night", "dark sky clouds"]
+
+horor_nusantara:
+  label: "Horor Nusantara"
+  source: none   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-GadisNeural
+  rate: "-12%"
+  tone: "Pencerita horor cerita rakyat Nusantara yang berbisik dan menegangkan: desa, malam, kabut, bunyi-bunyi aneh, pantangan yang dilanggar. Bangun rasa takut lewat suasana, bukan gore. Hormati agama dan suku; sajikan sebagai legenda/cerita rakyat atau fiksi."
+  topic_hint: "cerita horor legenda rakyat Nusantara (makhluk halus, tempat angker, pantangan)"
+  regions: ["Jawa Tengah", "Jawa Barat", "Betawi", "Sumatra", "Kalimantan", "Sulawesi", "Bali", "Maluku", "Papua"]
+  disclaimer: "Cerita rakyat/fiksi untuk hiburan; bukan fakta dan tidak bermaksud merendahkan kepercayaan mana pun."
+  style:
+    font: "Oswald"
+    size: 78
+    title_size: 60
+    color: "&H00281EC8&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [200, 30, 40]
+    accent_prompt: "dark blood red"
+    uppercase: true
+    flicker: true        # cahaya berkedip tipis
+    heartbeat: true      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.14:brightness=-0.06:saturation=0.95"
+    fx_default: ["fog", "dust"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 46, wind: 0.7}
+  fallback_keywords: ["foggy village night", "old wooden house dark", "banyan tree night", "rice field fog night"]
+
+legenda_urban:
+  label: "Legenda Urban"
+  source: none   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-ArdiNeural
+  rate: "-10%"
+  tone: "Pencerita legenda urban modern: jalan sepi, rumah kosong, lift, rumah sakit tua, pesan aneh di ponsel. Gaya \"katanya...\" lalu misteri makin dalam. Fiksi; tanpa nama orang nyata."
+  topic_hint: "legenda urban yang menyeramkan di kota"
+  regions: ["Jakarta", "Bandung", "Surabaya", "Jepang", "Amerika", "Eropa", "Korea", "Thailand"]
+  disclaimer: "Legenda urban/fiksi untuk hiburan, bukan fakta."
+  style:
+    font: "Oswald"
+    size: 76
+    title_size: 58
+    color: "&H003CDC96&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [150, 220, 60]
+    accent_prompt: "sickly acid green"
+    uppercase: true
+    flicker: true        # cahaya berkedip tipis
+    heartbeat: true      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.12:brightness=-0.05:saturation=0.9"
+    fx_default: ["rain", "fog"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 58, wind: 0.5}
+  fallback_keywords: ["empty street night rain", "abandoned hospital corridor", "old elevator", "streetlight fog"]
+
+kasus_tak_terpecahkan:
+  label: "Kasus Tak Terpecahkan"
+  source: wikipedia   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-ArdiNeural
+  rate: "-8%"
+  tone: "Narator investigatif yang tenang. Paparkan fakta yang tercatat, kejanggalan, dan teori yang beredar. Hormati korban; jangan menuduh siapa pun; tanpa detail kekerasan."
+  topic_hint: "kasus misterius yang belum terpecahkan (hilangnya kapal, orang, atau benda)"
+  regions: ["Kapal hantu", "Orang hilang", "Penerbangan hilang", "Pesan sandi misterius", "Ekspedisi hilang", "Penampakan massal"]
+  disclaimer: "Berdasarkan sumber terbuka; sebagian masih teori dan belum terbukti."
+  style:
+    font: "Oswald"
+    size: 74
+    title_size: 58
+    color: "&H00E55D9B&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [155, 93, 229]
+    accent_prompt: "muted violet"
+    uppercase: true
+    flicker: false        # cahaya berkedip tipis
+    heartbeat: true      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.10:brightness=-0.05:saturation=0.9"
+    fx_default: ["fog", "dust"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 50, wind: 0.5}
+  fallback_keywords: ["old ship fog sea", "detective desk lamp", "ocean horizon storm", "empty room evidence"]
+
+ufo_uap:
+  label: "UFO & Fenomena Langit"
+  source: wikipedia   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-ArdiNeural
+  rate: "-8%"
+  tone: "Narator sains-misteri yang skeptis tetapi penasaran. Bedakan laporan saksi, data, dan spekulasi."
+  topic_hint: "fenomena langit tak dikenal (UAP/UFO) yang terdokumentasi"
+  regions: ["Amerika", "Eropa", "Asia", "Australia", "Amerika Selatan", "Laut"]
+  disclaimer: "Berdasarkan sumber terbuka; penjelasan pasti banyak yang belum ada."
+  style:
+    font: "Oswald"
+    size: 74
+    title_size: 58
+    color: "&H00AAE600&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [0, 230, 170]
+    accent_prompt: "spectral cyan green"
+    uppercase: true
+    flicker: false        # cahaya berkedip tipis
+    heartbeat: false      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.10:brightness=-0.05:saturation=0.9"
+    fx_default: ["fog", "dust"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 44, wind: 0.35}
+  fallback_keywords: ["night sky stars", "lonely road night", "radar screen", "clouds moonlight"]
+
+kriptid:
+  label: "Makhluk Misterius (Kriptid)"
+  source: wikipedia   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-ArdiNeural
+  rate: "-10%"
+  tone: "Penjelajah misteri yang berbisik: kesaksian, jejak, foto buram. Bedakan bukti dan legenda; sebut penjelasan ilmiah bila ada."
+  topic_hint: "makhluk misterius atau kriptid yang dilaporkan saksi"
+  regions: ["Amerika Utara", "Skotlandia", "Asia Tenggara", "Himalaya", "Australia", "Afrika", "Eropa Timur"]
+  disclaimer: "Berdasarkan laporan dan sumber terbuka; keberadaannya belum terbukti secara ilmiah."
+  style:
+    font: "Oswald"
+    size: 76
+    title_size: 58
+    color: "&H002878FF&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [255, 120, 40]
+    accent_prompt: "burnt orange"
+    uppercase: true
+    flicker: true        # cahaya berkedip tipis
+    heartbeat: true      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.12:brightness=-0.06:saturation=0.9"
+    fx_default: ["fog", "dust"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 48, wind: 0.7}
+  fallback_keywords: ["dark forest fog", "lake mist night", "footprints mud", "mountain snow fog"]
+
+tempat_angker:
+  label: "Tempat Angker & Terlarang"
+  source: wikipedia   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-GadisNeural
+  rate: "-10%"
+  tone: "Pemandu tur gelap yang tenang: sejarah tempat, kejadian tercatat, rumor angker. Bedakan sejarah dan rumor."
+  topic_hint: "tempat terbengkalai atau angker dengan sejarah tercatat"
+  regions: ["Jepang", "Eropa", "Amerika", "Indonesia", "Asia Tenggara", "Inggris"]
+  disclaimer: "Sejarah berdasarkan sumber terbuka; cerita angker hanyalah rumor."
+  style:
+    font: "Oswald"
+    size: 76
+    title_size: 58
+    color: "&H00FFC896&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [150, 200, 255]
+    accent_prompt: "pale ghostly blue"
+    uppercase: true
+    flicker: true        # cahaya berkedip tipis
+    heartbeat: true      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.12:brightness=-0.06:saturation=0.85"
+    fx_default: ["fog", "dust"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 47, wind: 0.6}
+  fallback_keywords: ["abandoned building interior", "old mansion night", "empty corridor dark", "island ruins fog"]
+
+peradaban_hilang:
+  label: "Peradaban Hilang & Situs Kuno"
+  source: wikipedia   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-ArdiNeural
+  rate: "-8%"
+  tone: "Narator dokumenter arkeologi misteri: apa yang ditemukan, apa yang belum bisa dijelaskan, dan teori para ahli."
+  topic_hint: "situs kuno atau peradaban hilang yang masih menyimpan misteri"
+  regions: ["Nusantara", "Mesir", "Mesopotamia", "Amerika Tengah", "Andes", "Eropa", "Asia Selatan", "Pasifik"]
+  disclaimer: "Ringkasan dari sumber terbuka; banyak interpretasi masih diperdebatkan."
+  style:
+    font: "DejaVu Serif"
+    size: 70
+    title_size: 58
+    color: "&H00D0E040&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [64, 224, 208]
+    accent_prompt: "aged turquoise"
+    uppercase: false
+    flicker: false        # cahaya berkedip tipis
+    heartbeat: false      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.10:brightness=-0.04:saturation=0.95"
+    fx_default: ["fog", "dust"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 45, wind: 0.4}
+  fallback_keywords: ["ancient stone ruins fog", "temple jungle mist", "desert ruins sunset", "stone carvings"]
+
+artefak_terkutuk:
+  label: "Artefak & Benda Terkutuk"
+  source: wikipedia   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-ArdiNeural
+  rate: "-10%"
+  tone: "Pencerita kolektor barang antik yang dingin: sejarah benda, kejadian yang dikaitkan dengannya, dan penjelasan rasional. Jangan menyatakan kutukan sebagai fakta."
+  topic_hint: "benda bersejarah yang dikaitkan dengan kutukan atau misteri"
+  regions: ["Permata", "Naskah kuno", "Makam dan mumi", "Lukisan", "Perhiasan", "Benda koleksi museum"]
+  disclaimer: "Kisah kutukan hanyalah legenda; sejarah berdasarkan sumber terbuka."
+  style:
+    font: "DejaVu Serif"
+    size: 70
+    title_size: 58
+    color: "&H00BE3CC8&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [200, 60, 190]
+    accent_prompt: "deep magenta"
+    uppercase: false
+    flicker: true        # cahaya berkedip tipis
+    heartbeat: true      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.12:brightness=-0.05:saturation=0.9"
+    fx_default: ["fog", "embers"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 53, wind: 0.4}
+  fallback_keywords: ["old antique shelf dust", "candle old book", "glass display museum", "dark museum hall"]
+
+fenomena_alam:
+  label: "Fenomena Alam Misterius"
+  source: wikipedia   # wikipedia | news | none (fiksi/legenda)
+  voice: id-ID-ArdiNeural
+  rate: "-8%"
+  tone: "Narator sains yang takjub tetapi hati-hati: apa yang teramati dan teori ilmiah yang menjelaskannya."
+  topic_hint: "fenomena alam yang membingungkan atau sangat langka"
+  regions: ["Laut", "Gurun", "Hutan", "Kutub", "Gunung", "Langit"]
+  disclaimer: "Berdasarkan sumber terbuka; sebagian fenomena masih diteliti."
+  style:
+    font: "Oswald"
+    size: 74
+    title_size: 58
+    color: "&H00FF963C&"        # aksen (kata aktif, kotak label, kata raksasa)
+    accent_rgb: [60, 150, 255]
+    accent_prompt: "electric blue"
+    uppercase: true
+    flicker: false        # cahaya berkedip tipis
+    heartbeat: false      # vignette berdenyut + detak jantung
+    grade: "eq=contrast=1.10:brightness=-0.04:saturation=0.9"
+    fx_default: ["fog", "lightning"]   # fog dust rain embers lightning glitch
+    duotone: {black: [6, 5, 8], white: [228, 218, 200]}   # warna 'tinta di kertas tua'
+    ambience: {drone_hz: 42, wind: 0.8}
+  fallback_keywords: ["ocean waves night", "aurora sky", "storm clouds lightning", "glowing cave water"]
