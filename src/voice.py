@@ -1,7 +1,6 @@
 """Agen suara: Edge-TTS (gratis) per adegan, lengkap dengan timestamp per kata."""
 import asyncio
 import os
-import re
 from pathlib import Path
 
 from util import run, duration
@@ -28,24 +27,6 @@ async def _tts(text, voice, rate, mp3_path, pitch="+0Hz"):
                     "end": start + chunk["duration"] / 1e7,
                 })
     return words
-
-
-# Prosodi per tahap cerita (selisih rate %, selisih pitch Hz): makin tegang makin pelan & rendah
-BEAT_PROSODY = {"hook": (-2, -2), "context": (0, 0), "clue": (-2, -2),
-                "complication": (-6, -6), "reveal": (-10, -10), "payoff": (-8, -8)}
-
-
-def _num(text):
-    m = re.match(r"\s*([+-]?\d+)", str(text))
-    return int(m.group(1)) if m else 0
-
-
-def _prosody(rate, pitch, beat):
-    """Rate/pitch Edge-TTS untuk satu adegan, disesuaikan dengan tahap ceritanya."""
-    dr, dp = BEAT_PROSODY.get(str(beat or "").lower(), (0, 0))
-    r = max(-45, min(25, _num(rate) + dr))
-    p = max(-40, min(20, _num(pitch) + dp))
-    return f"{r:+d}%", f"{p:+d}Hz"
 
 
 def _even_words(text, dur):
@@ -78,8 +59,7 @@ def _raw_edge(script, cfg, work: Path, rate):
         words = []
         for attempt in range(3):
             try:
-                r_i, p_i = _prosody(rate or cfg["rate"], cfg.get("pitch", "+0Hz"), sc.get("beat"))
-                words = asyncio.run(_tts(sc["narration"], cfg["voice"], r_i, mp3, p_i))
+                words = asyncio.run(_tts(sc["narration"], cfg["voice"], rate or cfg["rate"], mp3, cfg.get("pitch", "+0Hz")))
                 if mp3.stat().st_size > 0:
                     break
             except Exception as e:  # jaringan/Edge kadang gagal sesaat
@@ -97,10 +77,10 @@ def synthesize(script, cfg, work: Path, rate=None):
     """
     work.mkdir(parents=True, exist_ok=True)
     engine = os.environ.get("TTS_ENGINE", "auto").strip().lower()
-    raws, used = None, "edge"
+    raws = None
     if engine in ("auto", "gemini") and os.environ.get("GEMINI_API_KEY"):
         try:
-            raws, used = _raw_gemini(script, cfg, work), "gemini"
+            raws = _raw_gemini(script, cfg, work)
         except Exception as e:
             print(f"Gemini TTS tidak dipakai: {e}")
             if engine == "gemini":
@@ -109,18 +89,12 @@ def synthesize(script, cfg, work: Path, rate=None):
     if raws is None:
         raws = _raw_edge(script, cfg, work, rate)
 
-    # Efek suara bernuansa horor hanya untuk Edge-TTS (Gemini sudah ekspresif). VOICE_FX=0 mematikan.
-    fx = cfg.get("voice_fx", "") if used == "edge" and os.environ.get("VOICE_FX", "1") != "0" else ""
-    if fx:
-        print("Efek suara style aktif untuk Edge-TTS.")
-    af = f"{fx},apad=pad_dur={PAD}" if fx else f"apad=pad_dur={PAD}"
-
     t0 = 0.0
     wavs = []
     for i, (sc, (src, words)) in enumerate(zip(script["scenes"], raws)):
         wav = work / f"scene{i:02d}.wav"
         run([
-            "ffmpeg", "-y", "-i", src, "-af", af,
+            "ffmpeg", "-y", "-i", src, "-af", f"apad=pad_dur={PAD}",
             "-ar", "44100", "-ac", "2", wav,
         ])
         dur = duration(wav)

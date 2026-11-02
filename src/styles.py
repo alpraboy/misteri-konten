@@ -33,7 +33,6 @@ STYLES = {
         ),
         "negative": "cute, pastel, clay 3d, paper scrapbook, clean studio, colorful, happy, cartoon, text, watermark",
         "pitch": "-6Hz",
-        "voice_fx": "aresample=44100,highpass=f=170,lowpass=f=4200,acrusher=bits=11:mix=0.2:mode=lin,tremolo=f=5.5:d=0.10,aecho=0.8:0.5:35:0.22",
         "tts": {"voice": "Enceladus",
                 "style": "Say in Indonesian, in a hushed, trembling, breathy whisper like a terrified person secretly recording, slowly, with tense pauses"},
         "style": {
@@ -67,7 +66,6 @@ STYLES = {
         ),
         "negative": "cute, pastel, clay chibi, neon glowing, clean corporate, happy, paper cute, colorful, text, watermark",
         "pitch": "-4Hz",
-        "voice_fx": "aresample=44100,highpass=f=110,acompressor=threshold=-20dB:ratio=3:attack=15:release=250,equalizer=f=3200:t=q:w=1.2:g=2,aecho=0.8:0.5:55:0.15",
         "tts": {"voice": "Charon",
                 "style": "Say in Indonesian, in a low, calm, suspicious investigative tone, slowly, like a detective revealing a hidden truth"},
         "style": {
@@ -102,7 +100,6 @@ STYLES = {
         ),
         "negative": "modern, cute, chibi, tech HUD, clay 3d, photorealistic face, colorful pastel, clean corporate, happy, text, watermark",
         "pitch": "-10Hz",
-        "voice_fx": "aresample=44100,asetrate=41895,aresample=44100,atempo=1.0526,bass=g=4:f=140,aecho=0.8:0.65:170|310:0.32|0.2",
         "tts": {"voice": "Algenib",
                 "style": "Say in Indonesian, in a deep, slow, solemn, gravelly ancient storyteller voice, sacred and eerie, like a dalang narrating a ritual"},
         "style": {
@@ -156,6 +153,5 @@ def apply(cfg, key):
     out["visual"] = {k: st[k] for k in ("label", "prefix", "suffix", "negative", "scene_rule")}
     out["pitch"] = st.get("pitch", "+0Hz")
     out["tts"] = dict(st.get("tts", {}))
-    out["voice_fx"] = st.get("voice_fx", "")
     out["fallback_keywords"] = out.get("fallback_keywords", [])
     return out

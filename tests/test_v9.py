@@ -2,7 +2,6 @@ import array
 import base64
 import math
 import os
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -175,53 +174,6 @@ class VoiceEngineTests(unittest.TestCase):
                 voice.synthesize(s, cfg, work)
         self.assertEqual(len(s["scenes"]), 2)
         self.assertTrue(all(sc["duration"] > 1.0 for sc in s["scenes"]))
-
-
-class ProsodyAndFxTests(unittest.TestCase):
-    def test_prosody_gets_slower_and_lower_as_story_gets_tense(self):
-        base = ("-10%", "-6Hz")
-        hook = voice._prosody(*base, "hook")
-        reveal = voice._prosody(*base, "reveal")
-        self.assertEqual(voice._prosody(*base, None), ("-10%", "-6Hz"))
-        self.assertLess(int(reveal[0][:-1]), int(hook[0][:-1]))
-        self.assertLess(int(reveal[1][:-2]), int(hook[1][:-2]))
-        self.assertEqual(voice._prosody("-44%", "-39Hz", "reveal"), ("-45%", "-40Hz"))   # dibatasi
-
-    def _run_and_capture(self, used_gemini):
-        cfg = styles.apply({"voice": "id-ID-ArdiNeural", "rate": "-5%", "style": {}}, "MYSTERY_WAYANG")
-        seen = []
-        real_run = voice.run
-
-        def spy(cmd, cwd=None):
-            seen.append([str(c) for c in cmd])
-            return real_run(cmd, cwd=cwd)
-
-        def fake_edge(script, cfg_, work_, rate):
-            outs = []
-            for i in range(len(script["scenes"])):
-                p = work_ / f"e{i}.wav"
-                tts_gemini.write_wav(pcm_tone(1.0), 24000, p)
-                outs.append((p, []))
-            return outs
-        with tempfile.TemporaryDirectory() as d, patch.object(voice, "run", spy), \
-                patch.object(voice, "_raw_edge", fake_edge), \
-                patch.dict(os.environ, {"GEMINI_API_KEY": "k" if used_gemini else "", "TTS_ENGINE": "auto"}), \
-                patch.object(voice, "_raw_gemini", lambda s, c, w: fake_edge(s, c, w, None)):
-            voice.synthesize({"scenes": [{"narration": "Satu dua tiga."}]}, cfg, Path(d))
-        af = [c[c.index("-af") + 1] for c in seen if "-af" in c]
-        return af[0]
-
-    def test_horror_voice_fx_only_on_edge_path(self):
-        self.assertIn("aecho", self._run_and_capture(used_gemini=False))        # Edge: efek style dipakai
-        self.assertNotIn("aecho", self._run_and_capture(used_gemini=True))      # Gemini: suara apa adanya
-
-    def test_voice_fx_can_be_disabled_and_every_style_has_a_valid_chain(self):
-        for k in styles.STYLE_KEYS:
-            fx = styles.apply({"voice": "x", "rate": "0%", "style": {}}, k)["voice_fx"]
-            self.assertTrue(fx.startswith("aresample=44100"), k)
-            r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=f=220:d=0.6",
-                                "-af", fx, "-f", "null", "-"], capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, f"{k}: {r.stderr[-200:]}")
 
 
 if __name__ == "__main__":
