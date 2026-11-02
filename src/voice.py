@@ -1,8 +1,7 @@
 """Agen suara: Edge-TTS (gratis) per adegan, lengkap dengan timestamp per kata."""
 import asyncio
+import os
 from pathlib import Path
-
-import edge_tts
 
 from util import run, duration
 
@@ -10,6 +9,7 @@ PAD = 0.48  # jeda alami antarscene agar narasi punya ruang bernapas
 
 
 async def _tts(text, voice, rate, mp3_path, pitch="+0Hz"):
+    import edge_tts  # impor di sini agar uji lokal tanpa edge-tts tetap jalan
     try:
         comm = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch, boundary="WordBoundary")
     except TypeError:  # edge-tts versi lama
@@ -36,15 +36,26 @@ def _even_words(text, dur):
     return [{"text": t, "start": i * step, "end": (i + 1) * step} for i, t in enumerate(toks)]
 
 
-def synthesize(script, cfg, work: Path, rate=None):
-    """Isi tiap scene dengan: wav, duration, start (global), words (global)."""
-    work.mkdir(parents=True, exist_ok=True)
-    t0 = 0.0
-    wavs = []
+def _raw_gemini(script, cfg, work: Path):
+    """Semua adegan lewat Gemini TTS. Gagal satu = gagal semua (supaya suara tidak campur)."""
+    import tts_gemini
+    t = cfg.get("tts") or {}
+    engine = tts_gemini.GeminiTTS(t.get("voice", "Charon"), t.get("style", ""))
+    print(f"Suara: Gemini TTS, suara '{engine.voice}'")
+    out = []
+    for i, sc in enumerate(script["scenes"]):
+        raw = work / f"raw{i:02d}.wav"
+        words = engine.synthesize(sc["narration"], raw)
+        print(f"  adegan {i}: ok (model {engine.working[0]})" if engine.working else f"  adegan {i}: ok")
+        out.append((raw, words))
+    return out
+
+
+def _raw_edge(script, cfg, work: Path, rate):
+    print(f"Suara: Edge-TTS ({cfg['voice']})")
+    out = []
     for i, sc in enumerate(script["scenes"]):
         mp3 = work / f"scene{i:02d}.mp3"
-        wav = work / f"scene{i:02d}.wav"
-
         words = []
         for attempt in range(3):
             try:
@@ -55,8 +66,35 @@ def synthesize(script, cfg, work: Path, rate=None):
                 print(f"TTS adegan {i} percobaan {attempt + 1} gagal: {e}")
                 if attempt == 2:
                     raise
+        out.append((mp3, words))
+    return out
+
+
+def synthesize(script, cfg, work: Path, rate=None):
+    """Isi tiap scene dengan: wav, duration, start (global), words (global).
+
+    Mesin suara: env TTS_ENGINE = auto (Gemini lalu cadangan Edge) | gemini | edge.
+    """
+    work.mkdir(parents=True, exist_ok=True)
+    engine = os.environ.get("TTS_ENGINE", "auto").strip().lower()
+    raws = None
+    if engine in ("auto", "gemini") and os.environ.get("GEMINI_API_KEY"):
+        try:
+            raws = _raw_gemini(script, cfg, work)
+        except Exception as e:
+            print(f"Gemini TTS tidak dipakai: {e}")
+            if engine == "gemini":
+                raise
+            print("-> memakai Edge-TTS untuk seluruh video.")
+    if raws is None:
+        raws = _raw_edge(script, cfg, work, rate)
+
+    t0 = 0.0
+    wavs = []
+    for i, (sc, (src, words)) in enumerate(zip(script["scenes"], raws)):
+        wav = work / f"scene{i:02d}.wav"
         run([
-            "ffmpeg", "-y", "-i", mp3, "-af", f"apad=pad_dur={PAD}",
+            "ffmpeg", "-y", "-i", src, "-af", f"apad=pad_dur={PAD}",
             "-ar", "44100", "-ac", "2", wav,
         ])
         dur = duration(wav)

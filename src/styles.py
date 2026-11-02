@@ -33,6 +33,8 @@ STYLES = {
         ),
         "negative": "cute, pastel, clay 3d, paper scrapbook, clean studio, colorful, happy, cartoon, text, watermark",
         "pitch": "-6Hz",
+        "tts": {"voice": "Enceladus",
+                "style": "Say in Indonesian, in a hushed, trembling, breathy whisper like a terrified person secretly recording, slowly, with tense pauses"},
         "style": {
             "font": "DejaVu Sans Mono", "size": 60, "title_size": 52,
             "color": "&H0041FF00&",         # hijau night vision #00FF41 (kata aktif)
@@ -64,6 +66,8 @@ STYLES = {
         ),
         "negative": "cute, pastel, clay chibi, neon glowing, clean corporate, happy, paper cute, colorful, text, watermark",
         "pitch": "-4Hz",
+        "tts": {"voice": "Charon",
+                "style": "Say in Indonesian, in a low, calm, suspicious investigative tone, slowly, like a detective revealing a hidden truth"},
         "style": {
             "font": "DejaVu Sans Mono", "size": 58, "title_size": 54,
             "color": "&H002222B2&",         # benang merah #B22222
@@ -96,6 +100,8 @@ STYLES = {
         ),
         "negative": "modern, cute, chibi, tech HUD, clay 3d, photorealistic face, colorful pastel, clean corporate, happy, text, watermark",
         "pitch": "-10Hz",
+        "tts": {"voice": "Algenib",
+                "style": "Say in Indonesian, in a deep, slow, solemn, gravelly ancient storyteller voice, sacred and eerie, like a dalang narrating a ritual"},
         "style": {
             "font": "DejaVu Serif", "size": 64, "title_size": 56,
             "color": "&H002F6B8C&",         # emas pudar #8C6B2F
@@ -146,5 +152,6 @@ def apply(cfg, key):
     out["look"] = st["look"]
     out["visual"] = {k: st[k] for k in ("label", "prefix", "suffix", "negative", "scene_rule")}
     out["pitch"] = st.get("pitch", "+0Hz")
+    out["tts"] = dict(st.get("tts", {}))
     out["fallback_keywords"] = out.get("fallback_keywords", [])
     return out
