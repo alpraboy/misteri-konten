@@ -13,6 +13,11 @@ on:
         type: choice
         options: [auto, MYSTERY_VHS, MYSTERY_CONSPIRACY, MYSTERY_WAYANG]
         default: auto
+      post:
+        description: "Unggah otomatis sebagai private/draf? (butuh secret platform)"
+        type: choice
+        options: [ya, tidak]
+        default: ya
       topic:
         description: "Topik (kosongkan agar agen memilih sendiri)"
         required: false
@@ -25,7 +30,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +61,22 @@ jobs:
           STYLE: ${{ inputs.style || 'auto' }}
           TOPIC: ${{ inputs.topic }}
         run: python src/main.py --theme "$THEME" --style "$STYLE" --topic "$TOPIC"
+
+      - name: Posting aman (private/draf)
+        if: ${{ inputs.post != 'tidak' }}
+        continue-on-error: true
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python src/publish.py output
 
       - name: Simpan hasil (unduh dari tab Artifacts)
         uses: actions/upload-artifact@v4
