@@ -144,11 +144,14 @@ class PublishTests(unittest.TestCase):
         self.assertIn("refresh token baru", r["note"])
 
     def test_one_platform_failing_does_not_stop_the_others_and_telegram_reports_all(self):
-        sent = {}
+        texts, docs = [], []
 
         def fake_post(url, **kw):
             if "api.telegram.org" in url and url.endswith("sendMessage"):
-                sent["text"] = kw["data"]["text"]
+                texts.append(kw["data"]["text"])
+                return R(200, {"ok": True})
+            if "api.telegram.org" in url and url.endswith("sendDocument"):
+                docs.append(kw["files"]["document"].name)
                 return R(200, {"ok": True})
             if "video_reels" in url and kw.get("data", {}).get("upload_phase") == "start":
                 return R(200, {"video_id": "1", "upload_url": "https://rupload.facebook.com/video-upload/1"})
@@ -157,15 +160,37 @@ class PublishTests(unittest.TestCase):
             raise RuntimeError("YouTube down")
         env = clean_env(YT_CLIENT_ID="a", YT_CLIENT_SECRET="b", YT_REFRESH_TOKEN="c", FB_PAGE_ID="P", FB_PAGE_TOKEN="T",
                         TELEGRAM_BOT_TOKEN="tg", TELEGRAM_CHAT_ID="42")
-        with tempfile.TemporaryDirectory() as d, env, patch.object(publish.requests, "post", fake_post), \
-                patch.object(publish, "make_preview", return_value=None):
-            res = publish.run_all(make_out(d))
+        with tempfile.TemporaryDirectory() as d, env, patch.object(publish.requests, "post", fake_post):
+            out = make_out(d)
+            with patch.object(publish, "make_preview", return_value=out / "kirim-telegram.mp4"):
+                (out / "kirim-telegram.mp4").write_bytes(b"v")
+                res = publish.run_all(out)
         self.assertEqual(res["YouTube"]["status"], "gagal")
         self.assertEqual(res["Facebook"]["status"], "ok")
         self.assertEqual(res["TikTok"]["status"], "skip")
-        self.assertIn("YouTube: GAGAL", sent["text"])
-        self.assertIn("klaim A", sent["text"])                               # klaim yang perlu dicek ikut dikirim
-        self.assertIn("Facebook: OK", sent["text"])
+        self.assertIn("YouTube: GAGAL", texts[0])
+        self.assertIn("klaim A", texts[0])                                  # klaim yang perlu dicek ikut dikirim
+        self.assertIn("Facebook: OK", texts[0])
+        self.assertIn("Posting manual untuk YouTube, TikTok", texts[0])
+        self.assertTrue(texts[1].startswith("Teks siap tempel"))              # caption siap salin
+        self.assertIn("Deskripsi", texts[1])
+        self.assertEqual(len(docs), 1)                                        # file video dikirim sebagai dokumen
+
+    def test_telegram_file_keeps_full_resolution_and_fits_bot_limit(self):
+        import subprocess
+        self.assertLessEqual(publish.target_bitrate(90) * 90 / 8, 47 * publish.MB)     # 90 dtk muat di 47 MB
+        self.assertGreater(publish.target_bitrate(30), publish.target_bitrate(90))      # lebih pendek -> bitrate lebih tinggi
+        self.assertLessEqual(publish.target_bitrate(5), 8_000_000)
+        with tempfile.TemporaryDirectory() as d:
+            src, out = Path(d) / "in.mp4", Path(d) / "out.mp4"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=1080x1920:rate=30:duration=3",
+                            "-f", "lavfi", "-i", "sine=f=300:d=3", "-pix_fmt", "yuv420p", "-shortest", str(src)], check=True)
+            got = publish.make_preview(src, out)
+            self.assertEqual(got, out)
+            probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                                    "-of", "csv=p=0", str(out)], capture_output=True, text=True).stdout.strip()
+            self.assertEqual(probe, "1080,1920")
+            self.assertLess(out.stat().st_size, 49 * publish.MB)
 
     def test_latest_output_picks_newest_folder_with_video(self):
         with tempfile.TemporaryDirectory() as d:

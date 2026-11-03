@@ -175,12 +175,35 @@ def tiktok_inbox(video: Path, meta):
 
 
 # ------------------------------------------------------------------ Telegram
+def _duration(video: Path):
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(video)],
+                       capture_output=True, text=True)
+    try:
+        return max(float(r.stdout.strip()), 1.0)
+    except ValueError:
+        return 60.0
+
+
+def target_bitrate(duration, limit_mb=47.0, audio_kbps=128):
+    """Bitrate video (bit/s) agar file <= limit_mb: tetap 1080x1920, kualitas setinggi yang muat."""
+    total = limit_mb * MB * 8 / max(duration, 1.0)
+    return int(min(8_000_000, max(900_000, total - audio_kbps * 1000)))
+
+
 def make_preview(video: Path, out: Path):
-    """Pratinjau ringan (<50 MB, batas bot Telegram)."""
-    r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(video), "-vf", "scale=540:960",
-                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-maxrate", "1500k", "-bufsize", "3M",
-                        "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(out)], capture_output=True, text=True)
-    return out if r.returncode == 0 and out.exists() and out.stat().st_size < 49 * MB else None
+    """File siap-unggah manual (TikTok/Facebook) yang muat di bot Telegram (<50 MB), resolusi penuh."""
+    dur = _duration(video)
+    for limit in (47.0, 40.0, 33.0):
+        tb = target_bitrate(dur, limit)
+        r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(video),
+                            "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease",
+                            "-c:v", "libx264", "-preset", "veryfast", "-b:v", str(tb),
+                            "-maxrate", str(int(tb * 1.12)), "-bufsize", str(tb * 2),
+                            "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(out)],
+                           capture_output=True, text=True)
+        if r.returncode == 0 and out.exists() and out.stat().st_size < 49 * MB:
+            return out
+    return None
 
 
 def summary_text(meta, results):
@@ -192,6 +215,9 @@ def summary_text(meta, results):
             lines.append(f"  {r['url']}")
     if meta.get("claims"):
         lines += ["", "Klaim yang perlu dicek sebelum publish:"] + [f"* {c}" for c in meta["claims"][:6]]
+    skipped = [n for n, r in results.items() if r["status"] != "ok"]
+    if skipped:
+        lines += ["", f"Posting manual untuk {', '.join(skipped)}: pakai file video dan teks caption yang dikirim sesudah pesan ini."]
     lines += ["", "Cek juga verify.md di Artifacts. Aktifkan label konten AI di platform bila diminta."]
     return "\n".join(lines)[:3900]
 
@@ -202,16 +228,22 @@ def telegram(meta, results, preview: Path | None):
         return {"status": "skip", "note": "secret Telegram belum diisi"}
     token, chat = creds
     api = f"https://api.telegram.org/bot{token}"
-    r = requests.post(f"{api}/sendMessage", data={"chat_id": chat, "text": summary_text(meta, results),
-                                                  "disable_web_page_preview": "true"}, timeout=30)
+
+    def send(text):
+        return requests.post(f"{api}/sendMessage", data={"chat_id": chat, "text": text[:4000],
+                                                         "disable_web_page_preview": "true"}, timeout=30)
+    r = send(summary_text(meta, results))
     if r.status_code != 200:
         return {"status": "gagal", "note": f"sendMessage {r.status_code}: {_short(r.text, 120)}"}
+    if meta.get("caption"):   # teks siap salin untuk posting manual TikTok/Facebook
+        send("Teks siap tempel (TikTok / Facebook):\n\n" + meta["caption"])
     if preview:
         with open(preview, "rb") as f:
-            v = requests.post(f"{api}/sendVideo", data={"chat_id": chat, "supports_streaming": "true"},
-                              files={"video": f}, timeout=(30, 600))
+            v = requests.post(f"{api}/sendDocument", data={
+                "chat_id": chat, "caption": "File video siap unggah manual (1080x1920). Simpan lalu unggah ke TikTok/Facebook."},
+                files={"document": f}, timeout=(30, 900))
         if v.status_code != 200:
-            return {"status": "ok", "note": f"teks terkirim, pratinjau gagal ({v.status_code})"}
+            return {"status": "ok", "note": f"teks terkirim, file video gagal ({v.status_code})"}
     return {"status": "ok", "note": "terkirim"}
 
 
@@ -227,8 +259,8 @@ def run_all(out_dir: Path):
             results[name] = {"status": "gagal", "note": f"{type(e).__name__}: {_short(e, 200)}"}
         print(f"{name}: {results[name]['status']} - {results[name].get('note', '')}")
     preview = None
-    if _env("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID") and any(r["status"] == "ok" for r in results.values()):
-        preview = make_preview(video, out_dir / "preview.mp4")
+    if _env("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+        preview = make_preview(video, out_dir / "kirim-telegram.mp4")
     tg = telegram(meta, results, preview)
     print(f"Telegram: {tg['status']} - {tg.get('note', '')}")
     if preview and preview.exists():
