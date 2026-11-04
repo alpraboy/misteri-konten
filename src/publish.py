@@ -8,6 +8,7 @@
 Platform tanpa secret dilewati. Kegagalan satu platform tidak menghentikan yang lain
 (PUBLISH_STRICT=1 membuat workflow gagal bila ada yang gagal).
 """
+import html
 import json
 import math
 import os
@@ -206,6 +207,29 @@ def make_preview(video: Path, out: Path):
     return None
 
 
+def dashboard_url():
+    """Alamat dashboard HP: env DASHBOARD_URL, atau diturunkan dari pemilik repo (GitHub Pages)."""
+    url = os.environ.get("DASHBOARD_URL", "").strip()
+    if url:
+        return url
+    owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "").strip().lower()
+    return f"https://{owner}.github.io/agen-misteri-info/dashboard.html" if owner else ""
+
+
+def keyboard(meta, results):
+    """Tombol di bawah pesan Telegram (tautan https saja; tidak perlu server)."""
+    rows = []
+    yt = results.get("YouTube", {})
+    if yt.get("status") == "ok" and yt.get("url"):
+        rows.append([{"text": "\u25B6\uFE0F Buka YouTube Studio", "url": yt["url"]}])
+    rows.append([{"text": "\U0001F3B5 Buka TikTok", "url": "https://www.tiktok.com/"},
+                 {"text": "\U0001F4D8 Facebook Reels", "url": "https://www.facebook.com/reels/create"}])
+    dash = dashboard_url()
+    if dash:
+        rows.append([{"text": "\U0001F3AC Buat video lagi", "url": dash}])
+    return {"inline_keyboard": rows}
+
+
 def summary_text(meta, results):
     icon = {"ok": "OK", "gagal": "GAGAL", "skip": "dilewati"}
     lines = [f"Video siap dicek: {meta['title']}", f"Style: {meta.get('style') or '-'}", ""]
@@ -218,7 +242,9 @@ def summary_text(meta, results):
     skipped = [n for n, r in results.items() if r["status"] != "ok"]
     if skipped:
         lines += ["", f"Posting manual untuk {', '.join(skipped)}: pakai file video dan teks caption yang dikirim sesudah pesan ini."]
-    lines += ["", "Cek juga verify.md di Artifacts. Aktifkan label konten AI di platform bila diminta."]
+    lines += ["", "Cara tercepat posting manual: ketuk file video di bawah > Bagikan (Share) > pilih TikTok / Facebook. "
+                  "Tempel caption dari pesan berikutnya (ketuk teks untuk menyalin).",
+              "Cek juga verify.md di Artifacts. Aktifkan label konten AI di platform bila diminta."]
     return "\n".join(lines)[:3900]
 
 
@@ -229,14 +255,17 @@ def telegram(meta, results, preview: Path | None):
     token, chat = creds
     api = f"https://api.telegram.org/bot{token}"
 
-    def send(text):
-        return requests.post(f"{api}/sendMessage", data={"chat_id": chat, "text": text[:4000],
-                                                         "disable_web_page_preview": "true"}, timeout=30)
-    r = send(summary_text(meta, results))
+    def send(text, **extra):
+        data = {"chat_id": chat, "text": text[:4000], "disable_web_page_preview": "true"}
+        data.update(extra)
+        return requests.post(f"{api}/sendMessage", data=data, timeout=30)
+    r = send(summary_text(meta, results), reply_markup=json.dumps(keyboard(meta, results)))
     if r.status_code != 200:
         return {"status": "gagal", "note": f"sendMessage {r.status_code}: {_short(r.text, 120)}"}
     if meta.get("caption"):   # teks siap salin untuk posting manual TikTok/Facebook
-        send("Teks siap tempel (TikTok / Facebook):\n\n" + meta["caption"])
+        # <code> = ketuk untuk menyalin seluruh teks di Telegram HP
+        send("Teks siap tempel (TikTok / Facebook), ketuk teks untuk menyalin:\n\n<code>"
+             + html.escape(meta["caption"][:3600]) + "</code>", parse_mode="HTML")
     if preview:
         with open(preview, "rb") as f:
             v = requests.post(f"{api}/sendDocument", data={

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0e12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Agen Misteri">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Agen Misteri - Dashboard</title>
+<style>
+  :root{--bg:#0e0e12;--card:#17171e;--line:#2a2a35;--fg:#ececf1;--mut:#9a9aa8;--acc:#c0392b;--ok:#2ecc71;--bad:#e74c3c;--wait:#f1c40f}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,Arial,sans-serif;padding:14px 14px 60px;max-width:560px;margin:auto}
+  h1{font-size:22px;margin:6px 0 2px} .sub{color:var(--mut);margin:0 0 14px;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+  label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+  select,input[type=text],input[type=password]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#101016;color:var(--fg);font-size:16px}
+  button{width:100%;padding:14px;border:0;border-radius:12px;font-size:17px;font-weight:700;margin-top:14px;background:var(--acc);color:#fff}
+  button.sec{background:#2a2a35;font-weight:600;font-size:15px;padding:11px;margin-top:8px} button:disabled{opacity:.5}
+  .row{display:flex;gap:8px} .row>*{flex:1}
+  .run{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)} .run:first-child{border-top:0}
+  .run .t{flex:1} .run .t b{display:block} .run .t span{color:var(--mut);font-size:13px}
+  .run a{color:#7fb3ff;font-size:14px;text-decoration:none} .run .x{background:#2a2a35;border-radius:8px;padding:6px 10px;font-size:13px;margin:0;width:auto}
+  .ok b{color:var(--ok)} .bad b{color:var(--bad)} .wait b,.run.run b{color:var(--wait)}
+  #msg{position:fixed;left:12px;right:12px;bottom:14px;background:#22222c;border:1px solid var(--line);border-radius:12px;padding:12px;display:none;z-index:9}
+  details summary{cursor:pointer;color:var(--mut)} small{color:var(--mut)}
+</style>
+</head>
+<body>
+<h1>Agen Misteri</h1>
+<p class="sub">Buat video dari HP. Hasil dikirim ke Telegram.</p>
+
+<div class="card" id="setup">
+  <details id="setupBox">
+    <summary>Pengaturan sambungan GitHub</summary>
+    <label>Nama pengguna GitHub</label><input type="text" id="owner" autocomplete="off" autocapitalize="off" placeholder="mis. budi123">
+    <label>Nama repositori</label><input type="text" id="repo" autocomplete="off" autocapitalize="off" value="misteri-konten">
+    <label>Token GitHub (disimpan hanya di HP ini)</label><input type="password" id="token" autocomplete="off" placeholder="github_pat_...">
+    <div class="row"><button class="sec" id="save">Simpan</button><button class="sec" id="test">Tes koneksi</button></div>
+    <button class="sec" id="forget" style="background:#3a1f1f">Hapus token dari HP ini</button>
+    <small>Token tidak pernah dikirim ke tempat lain selain api.github.com.</small>
+  </details>
+</div>
+
+<div class="card">
+  <label>Tema isi</label><select id="theme"></select>
+  <label>Style editing</label><select id="style"></select>
+  <label>Topik (boleh kosong, agen memilih sendiri)</label><input type="text" id="topic" placeholder="mis. kapal hantu Mary Celeste" maxlength="200">
+  <label>Unggah otomatis sebagai private/draf?</label>
+  <select id="post"><option value="ya">Ya (YouTube private + kirim ke Telegram)</option><option value="tidak">Tidak (hanya buat video)</option></select>
+  <button id="go">\uD83C\uDFAC Buat Video</button>
+</div>
+
+<div class="card">
+  <div class="row" style="align-items:center"><b style="flex:3">Status terakhir</b><button class="sec" id="refresh" style="flex:1;margin:0">Segarkan</button></div>
+  <div id="runs"><small>Memuat...</small></div>
+</div>
+
+<div id="msg"></div>
+<script src="dashboard-core.js"></script>
+<script>
+(function(){
+  "use strict";
+  var C = window.AMCore, $ = function(id){return document.getElementById(id);}, timer = null;
+  function cfg(){return {owner:localStorage.getItem("am_owner")||"",repo:localStorage.getItem("am_repo")||"misteri-konten",token:localStorage.getItem("am_token")||""};}
+  function toast(t,ms){var m=$("msg");m.textContent=t;m.style.display="block";clearTimeout(toast._t);toast._t=setTimeout(function(){m.style.display="none";},ms||5000);}
+  function fill(sel,list){list.forEach(function(x){var o=document.createElement("option");o.value=x[0];o.textContent=x[1];sel.appendChild(o);});}
+  fill($("theme"),C.THEMES);fill($("style"),C.STYLES);
+  ["theme","style","topic","post"].forEach(function(k){var v=localStorage.getItem("am_f_"+k);if(v!==null)$(k).value=v;$(k).addEventListener("change",function(){localStorage.setItem("am_f_"+k,$(k).value);});});
+  var c0=cfg();$("owner").value=c0.owner;$("repo").value=c0.repo;$("token").value=c0.token?"\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022":"";
+  if(!c0.owner||!c0.token)$("setupBox").open=true;
+
+  function gh(path,opts){
+    var c=cfg();opts=opts||{};
+    return fetch("https://api.github.com"+path,{method:opts.method||"GET",body:opts.body,headers:{
+      "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Authorization":"Bearer "+c.token}});
+  }
+  function base(){var c=cfg();return "/repos/"+encodeURIComponent(c.owner)+"/"+encodeURIComponent(c.repo);}
+  function ready(){var errs=C.validateConfig(cfg());if(errs.length){toast(errs[0]);$("setupBox").open=true;return false;}return true;}
+
+  $("save").onclick=function(){
+    var tok=$("token").value.trim();
+    localStorage.setItem("am_owner",$("owner").value.trim());localStorage.setItem("am_repo",$("repo").value.trim());
+    if(tok&&tok.indexOf("\u2022")<0)localStorage.setItem("am_token",tok);
+    $("token").value=localStorage.getItem("am_token")?"\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022":"";
+    toast("Tersimpan di HP ini.");loadRuns();
+  };
+  $("forget").onclick=function(){localStorage.removeItem("am_token");$("token").value="";toast("Token dihapus dari HP ini.");};
+  $("test").onclick=function(){
+    if(!ready())return;
+    gh(base()).then(function(r){return r.json().then(function(b){return[r.status,b];});}).then(function(x){
+      toast(x[0]===200?"Terhubung ke "+x[1].full_name+(x[1].private?" (privat)":""):C.explain(x[0],x[1]),7000);
+    }).catch(function(){toast("Tidak bisa terhubung ke GitHub. Periksa internet.");});
+  };
+  $("go").onclick=function(){
+    if(!ready())return;
+    var btn=$("go");btn.disabled=true;
+    gh(base()).then(function(r){return r.json().then(function(b){return[r.status,b];});}).then(function(x){
+      if(x[0]!==200){throw {status:x[0],body:x[1]};}
+      var body=C.buildDispatchBody(x[1].default_branch,{theme:$("theme").value,style:$("style").value,post:$("post").value,topic:$("topic").value});
+      return gh(base()+"/actions/workflows/"+C.WORKFLOW+"/dispatches",{method:"POST",body:JSON.stringify(body)});
+    }).then(function(r){
+      if(r.status===204){toast("Dimulai. Pantau statusnya di bawah; hasil masuk Telegram.",6000);setTimeout(loadRuns,4000);return;}
+      return r.json().catch(function(){return{};}).then(function(b){throw {status:r.status,body:b};});
+    }).catch(function(e){toast(e&&e.status?C.explain(e.status,e.body):"Gagal menghubungi GitHub.",8000);}).then(function(){btn.disabled=false;});
+  };
+  $("refresh").onclick=loadRuns;
+
+  function cancelRun(id){
+    gh(base()+"/actions/runs/"+id+"/cancel",{method:"POST"}).then(function(r){toast(r.status===202?"Permintaan batal dikirim.":"Gagal membatalkan ("+r.status+").");setTimeout(loadRuns,2500);});
+  }
+  function loadRuns(){
+    var box=$("runs");
+    if(C.validateConfig(cfg()).length){box.innerHTML="";var s=document.createElement("small");s.textContent="Isi pengaturan sambungan GitHub dulu.";box.appendChild(s);return;}
+    gh(base()+"/actions/workflows/"+C.WORKFLOW+"/runs?per_page=6").then(function(r){return r.json().then(function(b){return[r.status,b];});}).then(function(x){
+      box.innerHTML="";
+      if(x[0]!==200){var e=document.createElement("small");e.textContent=C.explain(x[0],x[1]);box.appendChild(e);return;}
+      var runs=x[1].workflow_runs||[];if(!runs.length){var n=document.createElement("small");n.textContent="Belum ada run.";box.appendChild(n);}
+      var anyActive=false;
+      runs.forEach(function(run){
+        var st=C.statusInfo(run);anyActive=anyActive||st.active;
+        var d=document.createElement("div");d.className="run "+st.cls;
+        var ic=document.createElement("div");ic.textContent=st.icon;ic.style.fontSize="22px";
+        var t=document.createElement("div");t.className="t";
+        var b=document.createElement("b");b.textContent="#"+run.run_number+" "+st.label;
+        var sp=document.createElement("span");sp.textContent=C.relTime(run.created_at);
+        t.appendChild(b);t.appendChild(sp);
+        var a=document.createElement("a");a.href=run.html_url;a.target="_blank";a.rel="noopener";a.textContent="Buka";
+        d.appendChild(ic);d.appendChild(t);d.appendChild(a);
+        if(st.active){var xb=document.createElement("button");xb.className="x";xb.textContent="Batal";xb.onclick=function(){cancelRun(run.id);};d.appendChild(xb);}
+        box.appendChild(d);
+      });
+      clearTimeout(timer);if(anyActive)timer=setTimeout(loadRuns,15000);
+    }).catch(function(){box.innerHTML="";var e=document.createElement("small");e.textContent="Tidak bisa memuat status (internet?).";box.appendChild(e);});
+  }
+  document.addEventListener("visibilitychange",function(){if(!document.hidden)loadRuns();});
+  loadRuns();
+})();
+</script>
+</body>
+</html>
