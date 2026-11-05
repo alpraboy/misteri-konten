@@ -127,7 +127,7 @@ def _choose(search, has_portrait, queries, used):
     return None
 
 
-def fetch_all(script, cfg, work: Path):
+def fetch_all(script, cfg, work: Path, strict=True):
     """Unduh footage. Dua jenis:
     - visual == 'footage'  : pengganti ilustrasi yang gagal (WAJIB; gagal -> berhenti)
     - broll_keywords       : inset kecil di beberapa adegan (OPSIONAL; gagal -> dilewati)
@@ -152,6 +152,11 @@ def fetch_all(script, cfg, work: Path):
         queries = [str(q).strip() for q in (sc.get("keywords") if required else sc.get("broll_keywords")) or [] if str(q).strip()]
         chosen = _choose(search, has_portrait, queries, used)
         if not chosen:
+            if required and not strict:   # jangan hentikan render: pemanggil akan memakai ulang gambar
+                print(f"Footage adegan {i} tidak ditemukan yang relevan -> adegan memakai gambar yang ada.")
+                sc["visual"] = "illustration"
+                sc["footage_missing"] = True
+                continue
             if required:
                 raise RuntimeError(
                     f"Tidak menemukan footage yang cukup relevan untuk adegan {i}. "
@@ -168,9 +173,12 @@ def fetch_all(script, cfg, work: Path):
         try:
             _download(v["link"], dest)
         except RuntimeError:
-            if required:
+            if required and strict:
                 raise
-            print(f"B-roll adegan {i} dilewati (unduhan gagal).")
+            if required:
+                sc["visual"] = "illustration"
+                sc["footage_missing"] = True
+            print(f"{'Footage' if required else 'B-roll'} adegan {i} dilewati (unduhan gagal).")
             continue
         sc["clip" if required else "broll_clip"] = str(dest)
         credits.append(v["credit"])

@@ -1,78 +1,83 @@
-# Agen Misteri v6.3 — visual relevance & subtitle-safe patch
+# Agen Misteri v8: 3 Style Editing
 
-Patch ini mengembalikan motion/typography editor ke baseline v5, membatasi panjang baris subtitle secara eksplisit, dan menolak footage dengan metadata yang tidak cukup relevan. Footage yang tidak cocok tidak akan diganti dengan kata kunci generik; proses berhenti dengan error yang menjelaskan adegan mana perlu diperbaiki.
+Video vertikal 9:16 (target 60-90 detik) yang dirender otomatis di GitHub Actions.
+Upload ke YouTube/TikTok tetap manual oleh Anda.
 
-# Agen Misteri Cinematic v6 — Retention Engine (Sejarah / Cerita / Berita)
+## Agen editing: HANYA 3 style, WAJIB memilih satu
+Pilih di workflow (kolom **style**): `auto` = agen memilih sendiri berdasarkan tujuan video, atau paksa salah satu.
 
-Pipeline video vertikal 9:16 dengan target durasi 60–90 detik, cinematic + motion graphics, hook terstruktur, dan laporan QA retensi. Berjalan di GitHub Actions.
-Upload ke YouTube/TikTok dilakukan manual oleh Anda.
+| Kode | Dipakai untuk | Ciri |
+|---|---|---|
+| `MYSTERY_VHS` | membuat takut, ketakutan personal, rekaman bocor, POV orang pertama | CCTV 240p, noise & tracking rusak, HUD REC + timer 03:33 AM, night-vision hijau, shaky cam |
+| `MYSTERY_CONSPIRACY` | curiga, menghubungkan titik, hal yang ditutupi | papan gabus, foto arsip, pin, benang merah, stempel CONFIDENTIAL, lampu gantung bergoyang |
+| `MYSTERY_WAYANG` | sakral, leluhur, ritual, makhluk penjaga | siluet wayang di kelir, tiga warna (arang, merah membara, emas pudar), asap kemenyan, batik, gerak patah-patah |
+
+Template prompt gambar, negative prompt, palet, tipografi, efek bergerak, dan profil audio tiap style
+ada di `src/styles.py` (ubah di sana bila ingin menyetel).
 
 ## Setup (sekali saja)
-1. Buat repo GitHub, unggah semua isi folder ini.
-2. Settings > Secrets and variables > Actions > New repository secret:
-   - `GEMINI_API_KEY` : gratis di https://aistudio.google.com/apikey
-   - `PIXABAY_API_KEY` : gratis, lihat di https://pixabay.com/api/docs/ setelah login
-   - (opsional) `PEXELS_API_KEY` : pendaftaran key baru Pexels sedang dijeda
-3. (Disarankan) Taruh 2-3 musik bebas royalti (.mp3) di `assets/music/`
-   atau per tema: `assets/music/sejarah/`, `assets/music/cerita/`, `assets/music/berita/`.
+1. Unggah semua isi folder ini ke repo GitHub; folder `.github` dibuat/diedit lewat web GitHub.
+2. Settings > Secrets and variables > Actions:
+   - `GEMINI_API_KEY` (wajib), `POLLINATIONS_API_KEY` (disarankan: model flux + negative prompt),
+   - `PIXABAY_API_KEY` (b-roll inset & cadangan), `PEXELS_API_KEY` (opsional).
+3. (Opsional) musik bebas royalti `.mp3` di `assets/music/`. Tanpa musik, video tetap punya suara latar buatan kode.
 
 ## Menjalankan
-Tab **Actions** > **Buat Video Misteri** > **Run workflow** > pilih tema, isi topik (boleh kosong).
-Setelah selesai, unduh **Artifacts** di bagian bawah halaman run.
+Actions > **Buat Video Misteri** > Run workflow > pilih tema, style, (topik boleh kosong) > Run.
+Unduh hasil di **Artifacts**. Log akan menulis `STYLE TERPILIH: ...` beserta alasannya.
 
-## Isi hasil
-- `video.mp4`      video 1080x1920
-- `caption.txt`    judul, deskripsi, hashtag, disclaimer
-- `verify.md`      klaim yang harus dicek + sumber + kredit footage
-- `thumbnail.jpg`  frame awal (bisa dipakai/ditimpa)
-- `script.json`    skrip lengkap + beat/visual role
-- `retention_report.md` cek ritme, hook, struktur cerita, dan checklist upload
+## Tema isi konten (`config/themes.yml`)
+| Kunci | Nama | Sumber fakta |
+|---|---|---|
+| `sejarah` | Sejarah Misteri | Wikipedia |
+| `cerita` | Cerita Misteri | Fiksi/legenda |
+| `berita` | Berita Misteri | Google News |
+| `horor_nusantara` | Horor Nusantara | Fiksi/legenda |
+| `legenda_urban` | Legenda Urban | Fiksi/legenda |
+| `kasus_tak_terpecahkan` | Kasus Tak Terpecahkan | Wikipedia |
+| `ufo_uap` | UFO & Fenomena Langit | Wikipedia |
+| `kriptid` | Makhluk Misterius (Kriptid) | Wikipedia |
+| `tempat_angker` | Tempat Angker & Terlarang | Wikipedia |
+| `peradaban_hilang` | Peradaban Hilang & Situs Kuno | Wikipedia |
+| `artefak_terkutuk` | Artefak & Benda Terkutuk | Wikipedia |
+| `fenomena_alam` | Fenomena Alam Misterius | Wikipedia |
 
-## Kustomisasi
-- Gaya per tema (suara, warna, font, grade): `config/themes.yml`
-- Model Gemini: env `GEMINI_MODEL` (default `gemini-flash-latest`)
+## Suara VO (Gemini TTS)
+- Narasi memakai **Gemini TTS** (key `GEMINI_API_KEY` yang sama) dengan suara & gaya berbeda per style:
+  VHS = `Enceladus` (berbisik), Konspirasi = `Charon` (tenang, curiga), Wayang = `Algenib` (berat, kuno).
+  Ganti nama suara/gaya di `src/styles.py` (bagian `"tts"`). Contoh suara lain: Orus, Fenrir (laki-laki);
+  Gacrux, Achernar, Kore, Sulafat (perempuan).
+- Bila Gemini TTS tidak tersedia (kuota/tier gratis/model), **seluruh video otomatis memakai Edge-TTS** agar suara
+  tidak tercampur. Log menulis `Suara: Gemini TTS ...` atau `Gemini TTS tidak dipakai: <alasan>`.
+- Edge-TTS memakai tempo dan nada tetap per style (seperti v8 awal). Dua fitur opsional, **mati secara bawaan**:
+  `BEAT_PROSODY=1` (tempo/nada ikut tahap cerita) dan `VOICE_FX=1` (efek suara per style: rekaman jadul, mikrofon dekat, gema).
+- Gemini TTS tidak memberi waktu per kata; subtitle disinkronkan dengan perkiraan panjang kata.
+- Env opsional: `TTS_ENGINE` (`auto` | `gemini` | `edge`), `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE`, `GEMINI_TTS_STYLE`.
 
-## Catatan
-- Selalu baca `verify.md` sebelum upload, terutama tema sejarah & berita.
-- Tema cerita adalah fiksi/legenda; disclaimer otomatis masuk caption.
+## Posting otomatis (mode aman: private / draf)
+Setelah video jadi, langkah **Posting aman** mengunggah ke platform yang secret-nya terisi. Anda cek lalu publish sendiri.
+| Platform | Hasil | Secret yang dibutuhkan |
+|---|---|---|
+| YouTube | video **private** + penanda konten AI + #Shorts | `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` |
+| Facebook | **Reel DRAFT** di Page | `FB_PAGE_ID`, `FB_PAGE_TOKEN` |
+| TikTok | **draf di kotak masuk** TikTok | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REFRESH_TOKEN` |
+| Telegram | ringkasan + teks caption siap tempel + **file video 1080x1920 siap unggah manual** (opsional) | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
+- **Tanpa akun developer:** bila Facebook/TikTok belum disambungkan, Telegram tetap mengirim file video dan caption
+  sehingga Anda tinggal mengunggah manual (sekitar 1 menit).
+- Platform tanpa secret dilewati; satu platform gagal tidak menghentikan yang lain. Pilih `post: tidak` di workflow untuk menonaktifkan.
+- Aturan platform: YouTube mengunci unggahan API yang belum diaudit sebagai private; TikTok membatasi aplikasi belum diaudit ke private/draf.
+  Karena itu mode aman ini sesuai aturan, dan publish tetap Anda lakukan manual setelah cek `verify.md`.
+- Laporan hasil ada di `publish_report.md` (Artifacts).
 
-## Gaya visual (fondasi v2)
-Komik tinta hitam-putih + satu warna aksen per tema. Tiap video: ilustrasi AI per adegan
-(Pollinations, tanpa key), maksimal 2 adegan footage Pixabay sebagai variasi.
-Tokoh dibuat per cerita, gayanya sama. Typography: judul "stiker komik" + subtitle pop beraksen.
-- Batas anonim Pollinations ~1 gambar / 15 detik, jadi tahap ilustrasi memakan beberapa menit.
-- Bila ilustrasi gagal, adegan itu otomatis memakai footage (butuh PIXABAY_API_KEY).
-- Opsional: secret `POLLINATIONS_API_KEY` / `POLLINATIONS_MODEL` bila ingin mengatur model atau batas.
+## Dashboard HP (tanpa membuka GitHub)
+Folder `site/` berisi halaman `dashboard.html` (pilih tema/style/topik, tombol Buat Video, status run, batalkan run).
+Unggah 5 file di dalamnya ke repo situs publik (`agen-misteri-info`) agar tampil di `https://NAMA.github.io/agen-misteri-info/dashboard.html`.
+Token GitHub (fine-grained, hanya repo ini, izin Actions: Read and write) disimpan hanya di HP Anda.
+Pesan Telegram punya tombol: YouTube Studio, TikTok, Facebook Reels, dan Buat video lagi (membuka dashboard).
 
-## Cinematic Retention Engine (v6)
-- **A — Cinematic documentary:** komposisi bidikan punya fungsi (establishing wide, medium untuk aksi, close-up hanya untuk detail penting); gerakan kamera sangat halus dengan zoom/pan kecil, durasi bidikan lebih panjang.
-- **B — Visual mengikuti cerita:** prompt storyboard diarahkan untuk menggambarkan isi narasi secara spesifik. Setiap adegan menambahkan informasi visual baru, menjaga konsistensi palet, era, cuaca dan tokoh, serta memakai transisi dissolve yang tenang.
-- **C — Identitas Agen Misteri:** penanda brand kecil, judul pembuka sederhana, subtitle stabil tanpa efek memantul, dan penutup ringkas. Tipografi tidak lagi membanting atau bergetar.
-- Tidak ada whoosh/hit, kilatan putih, garis kecepatan, getaran kamera, atau noise film. Hanya narasi dan musik latar lembut (jika tersedia); musik otomatis diredam saat narasi.
-- Tempo suara dibuat lebih santai dan jeda antarscene diperpanjang. Target v6 adalah 60–90 detik. Jika durasi di luar rentang, rapikan naskah; jangan memaksa narasi dipercepat.
-- Gambar lebih baik bila memakai key gratis dari https://enter.pollinations.ai: simpan sebagai secret `POLLINATIONS_API_KEY` (model default `flux`).
-
-### Catatan V6
-- Subtitle/brand/title dirender melalui ASS. Pastikan font Montserrat dan DejaVu tersedia di runner.
-- Musik bersifat opsional. Jika folder `assets/music/` kosong, render menggunakan narasi saja.
-- Output belum dianggap teruji sampai satu render penuh berhasil di GitHub Actions; periksa Artifact, sinkronisasi subtitle, dan audio sebelum upload.
-
-
-### Retention Engine v6
-- Target narasi 145–175 kata, 9–12 adegan, target audio 60–90 detik. Durasi aktual diukur setelah TTS; di luar target ditandai REVIEW dan tidak dipercepat paksa.
-- Story beats: hook → context → clue → complication → reveal → payoff. Hook harus spesifik dan payoff harus menjawab janji pembuka.
-- Visual cinematic + motion graphics terkendali: label beat, penanda progres adegan, komposisi berbasis peran visual, subtitle di area lebih aman.
-- `verify.md` menampilkan kecocokan kata dengan bahan sumber sebagai sinyal awal, bukan bukti kebenaran. Periksa klaim faktual secara manual pada sumber asli sebelum unggah.
-- `retention_report.md` membantu pemeriksaan editorial; data retensi penonton sesungguhnya hanya tersedia dari analitik platform setelah video diterbitkan.
-- Target 60–90 detik adalah sasaran, bukan jaminan. TTS, jeda, dan panjang kalimat dapat memengaruhi durasi akhir.
-
-
-### Pemulihan saat layanan ilustrasi bermasalah
-Jika API ilustrasi membalas HTTP 5xx atau koneksi berulang kali gagal, v6 menghentikan percobaan berulang dan membuat kartu visual cinematic lokal agar render dapat berlanjut. Kartu ini bukan ilustrasi AI spesifik; `verify.md` dan `script.json` menandai adegan fallback agar kreator bisa menggantinya sebelum upload. Untuk gambar AI sesuai prompt, jalankan ulang ketika layanan ilustrasi pulih atau gunakan penyedia gambar lain.
-
-
-## V6.2 — tanpa visual lokal
-- Sistem tidak lagi membuat kartu/placeholder visual lokal.
-- Jika ilustrasi AI gagal dan `PIXABAY_API_KEY` atau `PEXELS_API_KEY` tersedia, adegan dialihkan ke stock footage.
-- Jika ilustrasi AI gagal dan tidak ada API footage, workflow berhenti dengan pesan yang jelas, bukan menghasilkan visual pengganti.
-- Tambahkan secret di GitHub: `POLLINATIONS_API_KEY` (opsional, untuk ilustrasi AI ber-key), serta minimal salah satu `PIXABAY_API_KEY` atau `PEXELS_API_KEY` sebagai cadangan footage.
+## Catatan jujur
+- Gambar berasal dari AI gratis (still), bukan video AI. Gerak dibuat oleh mesin editing (kamera, overlay, glitch).
+- Template prompt Anda untuk video-AI dipakai sebagai prompt gambar; teks (REC, timer, stempel) digambar oleh editor agar tidak rusak.
+- Wayang tidak memakai footage modern. VHS dan konspirasi boleh memakai inset b-roll kecil di maksimal 3 adegan.
+- Baca `verify.md` sebelum upload (klaim, sumber, kredit). Jadwal harian dinonaktifkan secara bawaan.
+- Unit test berjalan sebelum render; bila gagal, workflow berhenti dengan pesan error jelas.

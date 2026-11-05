@@ -70,18 +70,23 @@ def main():
 
     print("== 3/6 Ilustrasi ==")
     failed = illustrator.generate_all(script, cfg, work)
+    # Cadangan bila gambar gagal: footage HANYA bila style mengizinkan (bukan wayang), ada API footage, dan adegan punya
+    # kata kunci; selain itu pakai ulang gambar adegan terdekat. Render tidak berhenti hanya karena beberapa gambar gagal.
+    reuse = []
     for i in failed:
-        if not has_footage_key:
-            raise RuntimeError(
-                f"Ilustrasi AI adegan {i} gagal dan tidak ada API footage sebagai cadangan. "
-                "Tambahkan secret PIXABAY_API_KEY atau PEXELS_API_KEY di GitHub Actions. "
-                "Tidak ada visual lokal yang akan dibuat."
-            )
-        script["scenes"][i]["visual"] = "footage"
-        print(f"Adegan {i} dialihkan ke stock footage karena ilustrasi AI gagal.")
+        sc_i = script["scenes"][i]
+        if cfg["look"] != "wayang" and has_footage_key and sc_i.get("keywords"):
+            sc_i["visual"] = "footage"
+            print(f"Adegan {i} dialihkan ke stock footage karena ilustrasi AI gagal.")
+        else:
+            reuse.append(i)
 
     print("== 4/6 Footage ==")
-    credits = footage.fetch_all(script, cfg, work)
+    credits = footage.fetch_all(script, cfg, work, strict=False)
+    reuse += [i for i, sc in enumerate(script["scenes"]) if sc.get("footage_missing") and i not in reuse]
+    if reuse:
+        illustrator.reuse_nearest(script, sorted(reuse))
+        script["image_reused"] = sorted(reuse)
 
     if cfg["look"] == "conspiracy":
         print("== Menyusun papan gabus & benang merah ==")
@@ -112,6 +117,10 @@ def main():
               f"Durasi audio: {actual_duration:.1f} detik | Target 60-90 detik: {duration_status}\n"]
     verify.append("## Status visual\n")
     fallback_scenes = [i for i, sc in enumerate(script.get("scenes", [])) if sc.get("image_fallback")]
+    if script.get("image_reused"):
+        verify.append(f"PERINGATAN: gambar AI gagal dibuat (saldo/kuota layanan gambar) untuk adegan "
+                      f"{', '.join(map(str, script['image_reused']))}; gambar adegan terdekat dipakai ulang dengan sudut kamera "
+                      "berbeda. Jalankan ulang setelah kuota pulih bila ingin gambar unik tiap adegan.\n")
     if fallback_scenes:
         verify.append(f"PERINGATAN: adegan dengan fallback visual lokal (bukan gambar AI spesifik): {', '.join(map(str, fallback_scenes))}. Ganti visual ini sebelum upload bila membutuhkan ilustrasi literal.\n")
     else:

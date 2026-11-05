@@ -23,6 +23,7 @@ LEGACY = "https://image.pollinations.ai/prompt/"  # cadangan tanpa key
 W, H = 1024, 1792  # rasio 9:16
 GAP = 2           # jeda pendek; layanan yang gagal diputus dengan circuit breaker
 REMOTE_BROKEN = False
+QUOTA_EXHAUSTED = False   # layanan gambar menolak karena saldo/kuota habis (402/429)
 
 STYLE = (
     "black and white horror ink illustration, gothic graphic novel panel, "
@@ -53,8 +54,8 @@ def build_prompt(script, cfg, sc):
 
 def _fetch(prompt, seed, dest_stem: Path, negative=""):
     """Fetch remote image briefly; stop retry storms when provider returns server errors."""
-    global REMOTE_BROKEN
-    if REMOTE_BROKEN:
+    global REMOTE_BROKEN, QUOTA_EXHAUSTED
+    if REMOTE_BROKEN or QUOTA_EXHAUSTED:
         return None
     key = os.environ.get("POLLINATIONS_API_KEY", "").strip()
     model = os.environ.get("POLLINATIONS_MODEL", "").strip() or ("flux" if key else "")
@@ -80,7 +81,12 @@ def _fetch(prompt, seed, dest_stem: Path, negative=""):
                 dest = dest_stem.with_suffix(EXT.get(ctype, ".jpg"))
                 dest.write_bytes(r.content)
                 return dest
-            print(f"  respons {r.status_code} ({ctype}, {len(r.content)} byte)")
+            body = r.text[:140].replace("\n", " ") if ("json" in ctype or "text" in ctype) else ""
+            print(f"  respons {r.status_code} ({ctype}, {len(r.content)} byte) {body}")
+            if r.status_code in (402, 429) and not use_key:   # tanpa key pun ditolak -> saldo/kuota habis
+                QUOTA_EXHAUSTED = True
+                print("  saldo/kuota layanan gambar habis; sisa adegan memakai gambar yang sudah jadi (sudut kamera berbeda).")
+                return None
             if r.status_code >= 500:
                 print("  layanan ilustrasi mengembalikan 5xx; aktifkan fallback lokal untuk sisa adegan")
                 REMOTE_BROKEN = True
@@ -215,11 +221,12 @@ def generate_all(script, cfg, work: Path):
     No local placeholder images are created: the pipeline either uses a real AI image,
     routes the scene to stock footage, or stops with a clear error.
     """
-    global REMOTE_BROKEN
+    global REMOTE_BROKEN, QUOTA_EXHAUSTED
     work.mkdir(parents=True, exist_ok=True)
     seed = random.randint(1, 999999)
     failed = []
     REMOTE_BROKEN = False
+    QUOTA_EXHAUSTED = False
     for i, sc in enumerate(script["scenes"]):
         if sc["visual"] != "illustration":
             continue
@@ -236,3 +243,23 @@ def generate_all(script, cfg, work: Path):
             failed.append(i)
             print(f"  ! Ilustrasi AI adegan {i} gagal; tidak membuat visual lokal.")
     return failed
+
+
+def reuse_nearest(script, indices):
+    """Adegan yang gambarnya gagal memakai ulang gambar adegan terdekat, dengan bidikan pembuka yang lebih dekat
+    (peran 'evidence' -> close_top) agar tidak terlihat sama persis. Berhenti bila TIDAK ada satu pun gambar."""
+    scenes = script["scenes"]
+    have = [i for i, sc in enumerate(scenes) if sc.get("image")]
+    if not have:
+        raise RuntimeError(
+            "Semua ilustrasi AI gagal dibuat (kemungkinan saldo/kuota layanan gambar habis, kode 402). "
+            "Periksa saldo di dashboard layanan gambar atau jalankan ulang nanti."
+        )
+    for i in indices:
+        donor = min(have, key=lambda k: (abs(k - i), k > i))
+        sc = scenes[i]
+        sc["image"] = scenes[donor]["image"]
+        sc["visual"] = "illustration"
+        sc["image_reused_from"] = donor
+        sc["visual_role"] = "evidence"
+        print(f"Adegan {i}: gambar adegan {donor} dipakai ulang (gambar baru gagal dibuat).")

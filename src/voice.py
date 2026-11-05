@@ -6,6 +6,9 @@ from pathlib import Path
 
 from util import run, duration
 
+GEMINI_MAX_TOTAL = 95.0   # di atas ini suara Gemini dianggap terlalu lambat
+GEMINI_TARGET = 85.0      # durasi narasi yang dituju setelah dipercepat
+GEMINI_MAX_SPEED = 1.5
 PAD = 0.48  # jeda alami antarscene agar narasi punya ruang bernapas
 
 
@@ -116,7 +119,14 @@ def synthesize(script, cfg, work: Path, rate=None):
     fx = cfg.get("voice_fx", "") if used == "edge" and os.environ.get("VOICE_FX", "0") == "1" else ""
     if fx:
         print("Efek suara style aktif untuk Edge-TTS.")
-    af = f"{fx},apad=pad_dur={PAD}" if fx else f"apad=pad_dur={PAD}"
+    speed = 1.0
+    if used == "gemini":   # suara Gemini cenderung lambat: percepat tanpa mengubah nada bila terlalu panjang
+        raw_total = sum(duration(src) for src, _ in raws) + PAD * len(raws)
+        if raw_total > GEMINI_MAX_TOTAL:
+            speed = min(GEMINI_MAX_SPEED, raw_total / GEMINI_TARGET)
+            print(f"Narasi Gemini {raw_total:.0f} dtk terlalu panjang -> dipercepat x{speed:.2f} (tanpa mengubah nada).")
+    filters = ([f"atempo={speed:.4f}"] if speed > 1.001 else []) + ([fx] if fx else []) + [f"apad=pad_dur={PAD}"]
+    af = ",".join(filters)
 
     t0 = 0.0
     wavs = []
@@ -129,6 +139,8 @@ def synthesize(script, cfg, work: Path, rate=None):
         dur = duration(wav)
         if not words:
             words = _even_words(sc["narration"], dur - PAD)
+        elif speed > 1.001:
+            words = [dict(w, start=w["start"] / speed, end=w["end"] / speed) for w in words]
 
         sc["wav"] = str(wav)
         sc["duration"] = dur

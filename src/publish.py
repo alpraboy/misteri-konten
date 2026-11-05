@@ -47,6 +47,7 @@ def load_meta(out_dir: Path):
     title = (script.get("title") or "Misteri").strip()
     tags = [t.lstrip("#").strip() for t in script.get("hashtags", []) if t.strip()]
     return {"title": title, "caption": caption.strip(), "tags": tags, "claims": script.get("claims_to_verify", []),
+            "reused": script.get("image_reused", []),
             "style": script.get("visual_style", ""), "duration": None}
 
 
@@ -237,6 +238,9 @@ def summary_text(meta, results):
         lines.append(f"- {name}: {icon.get(r['status'], r['status'])}. {r.get('note', '')}".strip())
         if r.get("url"):
             lines.append(f"  {r['url']}")
+    if meta.get("reused"):
+        lines += ["", "Catatan: gambar adegan " + ", ".join(map(str, meta["reused"]))
+                  + " dipakai ulang karena saldo/kuota gambar habis."]
     if meta.get("claims"):
         lines += ["", "Klaim yang perlu dicek sebelum publish:"] + [f"* {c}" for c in meta["claims"][:6]]
     skipped = [n for n, r in results.items() if r["status"] != "ok"]
