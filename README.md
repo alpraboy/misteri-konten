@@ -18,7 +18,8 @@ ada di `src/styles.py` (ubah di sana bila ingin menyetel).
 ## Setup (sekali saja)
 1. Unggah semua isi folder ini ke repo GitHub; folder `.github` dibuat/diedit lewat web GitHub.
 2. Settings > Secrets and variables > Actions:
-   - `GEMINI_API_KEY` (wajib), `POLLINATIONS_API_KEY` (disarankan: model flux + negative prompt),
+   - `GEMINI_API_KEY` (wajib), `POLLINATIONS_API_KEY` (disarankan: model flux + negative prompt; bila pollen habis, gambar otomatis beralih ke cadangan, urutan: Pollinations > Cloudflare > Gemini (pakai `GEMINI_API_KEY` yang sama) > Hugging Face > stock footage > pakai ulang gambar),
+   - cadangan gambar (opsional, makin lengkap makin aman): `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` (Workers AI, jatah gratis harian), `HF_TOKEN` (Hugging Face, kredit gratis kecil),
    - `PIXABAY_API_KEY` (b-roll inset & cadangan), `PEXELS_API_KEY` (opsional).
 3. (Opsional) musik bebas royalti `.mp3` di `assets/music/`. Tanpa musik, video tetap punya suara latar buatan kode.
 

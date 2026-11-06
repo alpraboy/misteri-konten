@@ -3,3 +3,4 @@ requests>=2.31
 PyYAML>=6.0
 Pillow>=10.0
 numpy>=1.26
+huggingface_hub>=0.30

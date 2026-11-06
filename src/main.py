@@ -75,7 +75,9 @@ def main():
     reuse = []
     for i in failed:
         sc_i = script["scenes"][i]
-        if cfg["look"] != "wayang" and has_footage_key and sc_i.get("keywords"):
+        qs = footage.fallback_queries(sc_i) if has_footage_key else []
+        if cfg["look"] != "wayang" and qs:
+            sc_i["keywords"] = qs
             sc_i["visual"] = "footage"
             print(f"Adegan {i} dialihkan ke stock footage karena ilustrasi AI gagal.")
         else:

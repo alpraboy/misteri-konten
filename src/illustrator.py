@@ -1,4 +1,4 @@
-"""Agen ilustrasi v7: komik tinta hitam-putih bergaya horor gotik, via Pollinations.
+"""Agen ilustrasi v7: komik tinta hitam-putih bergaya horor gotik, via Pollinations (cadangan: Cloudflare, Gemini, Hugging Face).
 
 Setiap gambar diproses ulang (grayscale + kontras + duotone 'tinta di kertas tua') supaya
 seluruh adegan tampil seragam, dengan sedikit warna aksen dipertahankan bila ada.
@@ -7,7 +7,9 @@ Konsistensi: awalan gaya yang sama di semua adegan, deskripsi tokoh yang sama,
 dan seed yang sama dalam satu video.
 Batas anonim Pollinations sekitar 1 permintaan / 15 detik, jadi ada jeda.
 """
+import base64
 import colorsys
+import io
 import math
 import os
 import random
@@ -24,6 +26,23 @@ W, H = 1024, 1792  # rasio 9:16
 GAP = 2           # jeda pendek; layanan yang gagal diputus dengan circuit breaker
 REMOTE_BROKEN = False
 QUOTA_EXHAUSTED = False   # layanan gambar menolak karena saldo/kuota habis (402/429)
+
+# Cadangan gambar #1: Gemini (memakai GEMINI_API_KEY yang sama dengan naskah & suara).
+# Nama model sering berubah; dicoba berurutan, bisa dipaksa lewat env GEMINI_IMAGE_MODEL.
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_MODELS = ["gemini-2.5-flash-image", "gemini-3.1-flash-image-preview"]
+GEMINI_BROKEN = False     # Gemini gambar tidak bisa dipakai (kuota/tier/kunci) -> lewati sisa adegan
+
+# Cadangan gambar #2: Cloudflare Workers AI (FLUX schnell; jatah gratis harian). Butuh 2 secret:
+# CLOUDFLARE_ACCOUNT_ID dan CLOUDFLARE_API_TOKEN. Bisa ganti model lewat env CLOUDFLARE_IMAGE_MODEL.
+CF_URL = "https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/{model}"
+CF_MODEL = "@cf/black-forest-labs/flux-1-schnell"
+CF_BROKEN = False
+
+# Cadangan gambar #3: Hugging Face (butuh secret HF_TOKEN; kredit gratisnya kecil, jadi dipakai paling akhir).
+# Bisa ganti model lewat env HF_IMAGE_MODEL.
+HF_MODEL = "black-forest-labs/FLUX.1-schnell"
+HF_BROKEN = False
 
 STYLE = (
     "black and white horror ink illustration, gothic graphic novel panel, "
@@ -103,6 +122,128 @@ def _fetch(prompt, seed, dest_stem: Path, negative=""):
                 REMOTE_BROKEN = True
                 return None
         time.sleep(2 * (attempt + 1))
+    return None
+
+
+def _fetch_gemini(prompt, seed, dest_stem: Path, negative=""):
+    """Cadangan: buat gambar lewat Gemini. Mengembalikan path file atau None (tanpa melempar error)."""
+    global GEMINI_BROKEN
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if GEMINI_BROKEN or not key:
+        return None
+    text = prompt if not negative else f"{prompt}. Avoid: {negative}"
+    body = {
+        "contents": [{"parts": [{"text": text[:1800]}]}],
+        "generationConfig": {
+            "responseModalities": ["IMAGE"],
+            "imageConfig": {"aspectRatio": "9:16"},
+        },
+    }
+    forced = os.environ.get("GEMINI_IMAGE_MODEL", "").strip()
+    for model in ([forced] if forced else GEMINI_MODELS):
+        for attempt in range(2):
+            try:
+                r = requests.post(GEMINI_URL.format(model=model), json=body,
+                                  headers={"x-goog-api-key": key}, timeout=(8, 90))
+            except requests.RequestException as e:
+                print(f"  Gemini gambar gagal: {type(e).__name__}")
+                GEMINI_BROKEN = True
+                return None
+            if r.status_code == 200:
+                try:
+                    parts = r.json()["candidates"][0]["content"]["parts"]
+                    data = next(p.get("inlineData") or p.get("inline_data") for p in parts
+                                if p.get("inlineData") or p.get("inline_data"))
+                    raw = base64.b64decode(data["data"])
+                    im = Image.open(io.BytesIO(raw)).convert("RGB")
+                except (KeyError, IndexError, StopIteration, ValueError, OSError, TypeError):
+                    print(f"  Gemini ({model}) tidak mengembalikan gambar (mungkin diblokir filter); adegan ini dilewati")
+                    return None   # kemungkinan prompt ditolak filter: model sama tidak perlu dicoba ulang
+                print(f"  gambar dibuat oleh Gemini ({model})")
+                return _save_fitted(im, dest_stem)
+            print(f"  Gemini ({model}) respons {r.status_code} {r.text[:120]!r}")
+            if r.status_code == 429 and attempt == 0:
+                time.sleep(20)          # batas per-menit: tunggu sebentar lalu coba sekali lagi
+                continue
+            if r.status_code == 404:    # nama model tidak ada -> coba nama berikutnya
+                break
+            GEMINI_BROKEN = True        # 429 lagi / 400 / 401 / 403: kuota habis atau tier gratis tak mendukung
+            return None
+    GEMINI_BROKEN = True
+    return None
+
+
+def _save_fitted(im, dest_stem: Path) -> Path:
+    """Paksa gambar ke rasio 9:16 (potong tengah) lalu simpan sebagai PNG."""
+    im = ImageOps.fit(im.convert("RGB"), (W, H), method=Image.LANCZOS)
+    dest = dest_stem.with_suffix(".png")
+    im.save(dest, "PNG")
+    return dest
+
+
+def _fetch_cloudflare(prompt, seed, dest_stem: Path, negative=""):
+    """Cadangan: FLUX schnell di Cloudflare Workers AI. Path file atau None (tanpa melempar error)."""
+    global CF_BROKEN
+    account = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+    token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    if CF_BROKEN or not account or not token:
+        return None
+    model = os.environ.get("CLOUDFLARE_IMAGE_MODEL", "").strip() or CF_MODEL
+    body = {"prompt": prompt[:2000], "steps": 4, "seed": int(seed) % 1000000}
+    for attempt in range(2):
+        try:
+            r = requests.post(CF_URL.format(account=account, model=model), json=body,
+                              headers={"Authorization": f"Bearer {token}"}, timeout=(8, 90))
+        except requests.RequestException as e:
+            print(f"  Cloudflare gambar gagal: {type(e).__name__}")
+            CF_BROKEN = True
+            return None
+        if r.status_code == 200:
+            try:
+                raw = base64.b64decode(r.json()["result"]["image"])
+                im = Image.open(io.BytesIO(raw))
+                im.load()
+            except (KeyError, TypeError, ValueError, OSError):
+                print("  Cloudflare tidak mengembalikan gambar yang valid; adegan ini dilewati")
+                return None
+            print(f"  gambar dibuat oleh Cloudflare ({model})")
+            return _save_fitted(im, dest_stem)
+        print(f"  Cloudflare respons {r.status_code} {r.text[:120]!r}")
+        if r.status_code >= 500 and attempt == 0:
+            time.sleep(3)
+            continue
+        CF_BROKEN = True     # 401/403 (token), 429 (jatah harian habis), 4xx lain: lewati sisa adegan
+        return None
+    CF_BROKEN = True
+    return None
+
+
+def _fetch_hf(prompt, seed, dest_stem: Path, negative=""):
+    """Cadangan terakhir: Hugging Face Inference Providers. Path file atau None."""
+    global HF_BROKEN
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if HF_BROKEN or not token:
+        return None
+    model = os.environ.get("HF_IMAGE_MODEL", "").strip() or HF_MODEL
+    try:
+        from huggingface_hub import InferenceClient   # diimpor di sini agar tidak wajib bila HF_TOKEN kosong
+        client = InferenceClient(provider="auto", api_key=token, timeout=90)
+        im = client.text_to_image(prompt[:1500], model=model)
+        print(f"  gambar dibuat oleh Hugging Face ({model})")
+        return _save_fitted(im, dest_stem)
+    except Exception as e:   # kuota/kredit habis, model tak tersedia, paket belum terpasang, dsb.
+        print(f"  Hugging Face gagal ({type(e).__name__}: {str(e)[:100]}); dilewati")
+        HF_BROKEN = True
+        return None
+
+
+def _fetch_any(prompt, seed, dest_stem: Path, negative=""):
+    """Rantai penyedia gambar. Urutan: Pollinations > Cloudflare > Gemini > Hugging Face.
+    Penyedia yang tidak punya secret otomatis dilewati. Mengembalikan path atau None."""
+    for fetch in (_fetch, _fetch_cloudflare, _fetch_gemini, _fetch_hf):
+        path = fetch(prompt, seed, dest_stem, negative)
+        if path:
+            return path
     return None
 
 
@@ -221,18 +362,21 @@ def generate_all(script, cfg, work: Path):
     No local placeholder images are created: the pipeline either uses a real AI image,
     routes the scene to stock footage, or stops with a clear error.
     """
-    global REMOTE_BROKEN, QUOTA_EXHAUSTED
+    global REMOTE_BROKEN, QUOTA_EXHAUSTED, GEMINI_BROKEN, CF_BROKEN, HF_BROKEN
     work.mkdir(parents=True, exist_ok=True)
     seed = random.randint(1, 999999)
     failed = []
     REMOTE_BROKEN = False
     QUOTA_EXHAUSTED = False
+    GEMINI_BROKEN = False
+    CF_BROKEN = False
+    HF_BROKEN = False
     for i, sc in enumerate(script["scenes"]):
         if sc["visual"] != "illustration":
             continue
         prompt = build_prompt(script, cfg, sc)
         print(f"Ilustrasi AI adegan {i}: {sc['image_prompt'][:80]}")
-        path = _fetch(prompt, seed + i, work / f"img{i:02d}", cfg.get("visual", {}).get("negative", ""))
+        path = _fetch_any(prompt, seed + i, work / f"img{i:02d}", cfg.get("visual", {}).get("negative", ""))
         if path:
             path = postprocess(path, cfg, i, seed)
             sc["image"] = str(path)
@@ -252,8 +396,8 @@ def reuse_nearest(script, indices):
     have = [i for i, sc in enumerate(scenes) if sc.get("image")]
     if not have:
         raise RuntimeError(
-            "Semua ilustrasi AI gagal dibuat (kemungkinan saldo/kuota layanan gambar habis, kode 402). "
-            "Periksa saldo di dashboard layanan gambar atau jalankan ulang nanti."
+            "Semua ilustrasi AI gagal dibuat (semua penyedia gambar gagal; kemungkinan kuota habis). "
+            "Periksa pollen di enter.pollinations.ai serta kuota Cloudflare/Gemini, atau jalankan ulang nanti."
         )
     for i in indices:
         donor = min(have, key=lambda k: (abs(k - i), k > i))

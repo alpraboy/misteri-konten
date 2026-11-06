@@ -12,6 +12,30 @@ from pathlib import Path
 import requests
 
 
+# Kata gaya/umum yang tidak berguna untuk mencari klip stok.
+_STOP = {"black", "white", "ink", "illustration", "horror", "gothic", "style", "panel", "high", "contrast",
+         "with", "from", "that", "this", "scene", "dramatic", "cinematic", "dark", "eerie", "mysterious",
+         "vertical", "photo", "photograph", "image", "focal", "subject", "simple", "composition", "detailed"}
+
+
+def fallback_queries(sc):
+    """Kata pencarian footage untuk adegan yang gambar AI-nya gagal.
+    Urutan: keywords > broll_keywords > diturunkan dari image_prompt (naskah umumnya mengisi keywords kosong,
+    sehingga tanpa ini cadangan footage tidak pernah terpakai dan gambar jadi dipakai ulang)."""
+    for key in ("keywords", "broll_keywords"):
+        qs = [str(k).strip() for k in (sc.get(key) or []) if str(k).strip()]
+        if qs:
+            return qs
+    text = str(sc.get("image_prompt") or "")
+    words = [w for w in re.findall(r"[A-Za-z]+", text) if len(w) > 3 and w.lower() not in _STOP]
+    out = []
+    if words:
+        out.append(" ".join(words[:3]))
+    if len(words) > 3:
+        out.append(" ".join(words[3:6]))
+    return out
+
+
 # ---------- Penyedia: Pixabay ----------
 def _pixabay(query, portrait=True):
     r = requests.get(
