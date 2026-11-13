@@ -17,6 +17,7 @@ import editor
 import board
 import footage
 import fx
+import history
 import illustrator
 import script_agent
 import styles
@@ -182,6 +183,10 @@ def main():
         for s in script["scenes"]
     ]
     (out_dir / "script.json").write_text(json.dumps(slim, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # catat topik ini agar video berikutnya tidak mengulang (hanya bila video berhasil dibuat)
+    history.record(args.theme, "" if cfg.get("source") == "news" else script.get("topic", ""), script.get("title", ""),
+                   script.get("topic_en", ""), script.get("wiki_title", ""), script.get("region", ""))
 
     print(f"\nSelesai: {out_dir}")
 

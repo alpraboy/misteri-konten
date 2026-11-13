@@ -82,3 +82,18 @@ Pesan Telegram punya tombol: YouTube Studio, TikTok, Facebook Reels, dan Buat vi
 - Wayang tidak memakai footage modern. VHS dan konspirasi boleh memakai inset b-roll kecil di maksimal 3 adegan.
 - Baca `verify.md` sebelum upload (klaim, sumber, kredit). Jadwal harian dinonaktifkan secara bawaan.
 - Unit test berjalan sebelum render; bila gagal, workflow berhenti dengan pesan error jelas.
+
+
+## Riwayat topik (agar konten tidak mengulang)
+
+Setiap video yang berhasil dibuat dicatat di `data/history.json` (topik, judul, artikel Wikipedia, wilayah).
+Sebelum membuat video baru, agen:
+1. mengirim daftar topik/judul lama ke model dan menolak usulan yang sama atau mirip (dicek lagi oleh kode, bukan hanya oleh model);
+2. memilih wilayah yang paling jarang dipakai untuk tema itu;
+3. untuk tema Wikipedia, mengganti topik bila artikelnya sudah pernah dibuat;
+4. membuat ulang satu kali bila judul hasilnya mirip video lama.
+
+Workflow menyimpan riwayat itu kembali ke repo secara otomatis (langkah "Simpan riwayat topik").
+Topik yang diisi manual tetap dipakai, tetapi diberi peringatan di log bila mirip video lama.
+Untuk memasukkan video lama ke riwayat, tambahkan baris di `data/history.json`, contoh:
+`{"theme": "sejarah", "topic": "Segitiga Bermuda", "title": "Kapal yang Lenyap"}`

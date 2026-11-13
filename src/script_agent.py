@@ -8,6 +8,7 @@ from datetime import date
 
 import requests
 
+import history
 import sources
 import styles
 
@@ -74,26 +75,69 @@ def _gemini(prompt, temperature=0.9):
 
 
 _TOPIC_EN = {}   # topik pilihan agen -> kata kunci Wikipedia Inggris (diisi saat _pick_topic)
+_TOPIC_REGION = {}   # topik pilihan agen -> wilayah yang dipakai saat mengusulkan (untuk riwayat)
 
 
-def _pick_topic(theme, cfg, topic):
-    """Kembalikan kata kunci topik. Bila kosong, minta model mengusulkan."""
+def _pick_topic(theme, cfg, topic, rejected=()):
+    """Kembalikan kata kunci topik. Bila kosong, minta model mengusulkan topik BARU:
+    yang belum pernah dibuat (dicek terhadap data/history.json)."""
     if topic.strip():
+        dup = history.find_duplicate([topic])
+        if dup:
+            print(f"PERINGATAN: topik '{topic.strip()}' mirip video sebelumnya "
+                  f"('{dup.get('title') or dup.get('topic')}'); tetap dipakai karena diisi manual.")
         return topic.strip()
     if cfg["source"] == "news":
         return cfg["topic_hint"]  # query RSS, bukan topik tunggal
-    region = random.choice(cfg["regions"])
-    prompt = (
-        f"Hari ini {date.today().isoformat()}. Usulkan 1 topik untuk video pendek bertema "
-        f"{cfg['topic_hint']} dengan latar/wilayah: {region}. "
-        'Balas JSON: {"topic": "kata kunci pencarian singkat 2-5 kata", '
-        '"topic_en": "kata kunci pencarian Wikipedia bahasa Inggris 2-5 kata untuk topik yang sama"}'
+    entries = history.load()
+    avoid = list(rejected) + history.avoid_list(theme)
+    for attempt in range(3):
+        # percobaan pertama: wilayah yang paling jarang dipakai; sesudahnya acak agar tidak buntu
+        region = history.pick_region(theme, cfg["regions"]) if attempt == 0 else random.choice(cfg["regions"])
+        avoid_text = (" JANGAN usulkan topik yang sama atau mirip dengan yang sudah pernah dibuat ini: "
+                      + "; ".join(avoid[:100]) + ".") if avoid else ""
+        prompt = (
+            f"Hari ini {date.today().isoformat()}. Usulkan 5 topik BERBEDA untuk video pendek bertema "
+            f"{cfg['topic_hint']} dengan latar/wilayah: {region}. Topik harus spesifik (satu kasus/tokoh/tempat/"
+            f"makhluk tertentu), bukan kategori umum.{avoid_text} "
+            'Balas JSON: {"candidates": [{"topic": "kata kunci pencarian singkat 2-5 kata", '
+            '"topic_en": "kata kunci pencarian Wikipedia bahasa Inggris 2-5 kata untuk topik yang sama"}, ...5 item]}'
+        )
+        data = _gemini(prompt, temperature=1.0)
+        cands = data.get("candidates") if isinstance(data, dict) else None
+        if not cands and isinstance(data, dict) and data.get("topic"):
+            cands = [data]
+        for c in cands or []:
+            if not isinstance(c, dict):
+                continue
+            chosen = str(c.get("topic", "")).strip()
+            en = str(c.get("topic_en", "")).strip()
+            if not chosen:
+                continue
+            if history.find_duplicate([chosen, en], entries) or any(history.is_similar(chosen, r) for r in rejected):
+                avoid.insert(0, chosen)
+                continue
+            if en:
+                _TOPIC_EN[chosen] = en
+            _TOPIC_REGION[chosen] = region
+            return chosen
+        print(f"Semua usulan topik (percobaan {attempt + 1}/3) sudah pernah dibuat; meminta usulan baru...")
+    raise RuntimeError(
+        "Agen tidak menemukan topik baru setelah 3 percobaan (semua usulan sudah pernah dibuat). "
+        "Coba jalankan ulang, atau isi kolom Topik secara manual."
     )
-    data = _gemini(prompt, temperature=1.0)
-    chosen = str(data["topic"]).strip()
-    if str(data.get("topic_en", "")).strip():
-        _TOPIC_EN[chosen] = str(data["topic_en"]).strip()
-    return chosen
+
+
+def _wiki_lookup(topic):
+    """Cari artikel Wikipedia Indonesia lalu Inggris. Kembalikan (judul, teks, url, bahasa) atau None."""
+    res = sources.wikipedia_context(topic)
+    if res:
+        return (*res, "id")
+    try:  # kata kunci Inggris sudah diminta saat memilih topik; tanpa panggilan Gemini baru
+        res = sources.wikipedia_context(_TOPIC_EN.get(topic, topic), lang="en")
+    except Exception:
+        res = None
+    return (*res, "en") if res else None
 
 
 MOTIONS = ["zoom_in", "zoom_out", "pan_left", "pan_right", "tilt_up", "tilt_down"]
@@ -125,31 +169,42 @@ SCHEMA = """{
 }"""
 
 
-def generate(theme, cfg, topic="", style=None):
-    topic = _pick_topic(theme, cfg, topic)
-    material, source_note, source_urls = "", "", []
+def generate(theme, cfg, topic="", style=None, _avoid_titles=()):
+    topic_arg = topic
+    manual = bool(topic_arg.strip())
+    material, source_note, source_urls, wiki_title = "", "", [], ""
+    rejected = list(_avoid_titles)
+
+    topic = topic_arg
+    if cfg["source"] != "wikipedia":
+        topic = _pick_topic(theme, cfg, topic_arg, rejected)
 
     if cfg["source"] == "wikipedia":
-        res = sources.wikipedia_context(topic)
-        if res:
-            title, text, url = res
+        res, dup = None, None
+        for _ in range(1 if manual else 4):   # ulangi bila artikel Wikipedia-nya sudah pernah dibuat
+            topic = _pick_topic(theme, cfg, topic_arg, rejected)
+            res = _wiki_lookup(topic)
+            dup = None if (not res or manual) else history.find_duplicate([res[0]])
+            if not dup:
+                break
+            print(f"Artikel '{res[0]}' sudah pernah dibuat ('{dup.get('title') or dup.get('topic')}'); mencari topik lain...")
+            rejected += [topic, res[0]]
+        if dup:
+            raise RuntimeError("Agen 4 kali berturut-turut mendapat artikel yang sudah pernah dibuat. "
+                               "Jalankan ulang, atau isi kolom Topik secara manual.")
+        if not res:
+            raise RuntimeError(
+                f"Sumber Wikipedia tidak ditemukan untuk topik '{topic}'. "
+                "Produksi faktual dihentikan agar agen tidak mengarang fakta. Coba topik yang lebih spesifik."
+            )
+        title, text, url, lang = res
+        if lang == "id":
             material = f"SUMBER (Wikipedia: {title}):\n{text}"
-            source_note = "Gunakan HANYA fakta yang ada di SUMBER. Jangan menambah tanggal, nama, atau angka dari luar sumber."
-            source_urls.append(url)
-        else:  # coba Wikipedia Inggris dengan kata kunci yang diterjemahkan
-            try:  # kata kunci Inggris sudah diminta saat memilih topik; tanpa panggilan Gemini baru
-                res = sources.wikipedia_context(_TOPIC_EN.get(topic, topic), lang="en")
-            except Exception:
-                res = None
-            if not res:
-                raise RuntimeError(
-                    f"Sumber Wikipedia tidak ditemukan untuk topik '{topic}'. "
-                    "Produksi faktual dihentikan agar agen tidak mengarang fakta. Coba topik yang lebih spesifik."
-                )
-            title, text, url = res
+        else:
             material = f"SUMBER (Wikipedia Inggris: {title}; tulis narasi dalam bahasa Indonesia):\n{text}"
-            source_note = "Gunakan HANYA fakta yang ada di SUMBER. Jangan menambah tanggal, nama, atau angka dari luar sumber."
-            source_urls.append(url)
+        source_note = "Gunakan HANYA fakta yang ada di SUMBER. Jangan menambah tanggal, nama, atau angka dari luar sumber."
+        source_urls.append(url)
+        wiki_title = title
     elif cfg["source"] == "news":
         items = sources.news_headlines(topic, cfg.get("news_window", "7d"))
         if not items:
@@ -185,6 +240,12 @@ def generate(theme, cfg, topic="", style=None):
             "Isi \"style\" dengan kode style terpilih dan \"style_reason\" dengan alasan singkat."
         )
 
+    prev_titles = list(_avoid_titles) + history.recent_titles(theme)
+    avoid_block = ""
+    if prev_titles:
+        avoid_block = ("VIDEO YANG SUDAH PERNAH DIBUAT (jangan ulangi judul, tokoh, kejadian, atau premis yang sama/serupa; "
+                       "pilih yang benar-benar berbeda):\n" + "\n".join(f"- {t}" for t in prev_titles[:30]) + "\n")
+
     prompt = f"""Kamu penulis skrip + storyboard video pendek vertikal (YouTube Shorts/TikTok) bertema {cfg['label']}.
 Gaya narasi: {cfg['tone']}
 {style_block}
@@ -192,7 +253,7 @@ Gaya narasi: {cfg['tone']}
 {source_note}
 
 {material}
-
+{avoid_block}
 Aturan RETENTION ENGINE v6:
 - Total narasi 145-175 kata, dibagi 9-12 adegan, target hasil audio 60-90 detik pada tempo tenang. Satu gagasan utama per adegan, kalimat lisan natural, tidak terburu-buru.
 - Urutan cerita wajib: hook (0-3 detik), context, clue, complication/kontradiksi, reveal yang didukung fakta, lalu payoff/penutup. Jangan membuat clickbait yang tidak terjawab.
@@ -300,6 +361,15 @@ Kembalikan HANYA JSON valid dengan skema ini:
     data["character"] = (data.get("character") or "").strip()
     data["topic"] = topic
     data["source_urls"] = source_urls
+    data["wiki_title"] = wiki_title
+    data["region"] = _TOPIC_REGION.get(topic, "")
+    data["topic_en"] = _TOPIC_EN.get(topic, "")
+    dup_title = history.find_duplicate([data.get("title", "")]) if not manual else None
+    if dup_title and not _avoid_titles:   # judul mirip video lama: buat ulang SATU kali dengan topik/peristiwa lain
+        print(f"Judul '{data.get('title')}' mirip video sebelumnya ('{dup_title.get('title') or dup_title.get('topic')}'); membuat ulang...")
+        return generate(theme, cfg, topic_arg, style, _avoid_titles=[str(data.get("title", ""))])
+    if dup_title:
+        print(f"PERINGATAN: judul masih mirip video sebelumnya ('{dup_title.get('title') or dup_title.get('topic')}'); periksa sebelum upload.")
     words = sum(len(s["narration"].split()) for s in scenes)
     print(f"Skrip: {len(scenes)} adegan ({broll_used} b-roll inset), {words} kata; style {style_key}; target 145-175 kata / 60-90 detik")
     return data
