@@ -27,6 +27,13 @@ on:
   # schedule:
   #   - cron: "0 1 * * *"
 
+permissions:
+  contents: write   # agar riwayat topik (data/history.json) bisa disimpan balik ke repo
+
+concurrency:
+  group: make-video   # satu proses sekali jalan, supaya riwayat topik tidak bentrok
+  cancel-in-progress: false
+
 jobs:
   render:
     runs-on: ubuntu-latest
@@ -64,6 +71,21 @@ jobs:
           STYLE: ${{ inputs.style || 'auto' }}
           TOPIC: ${{ inputs.topic }}
         run: python src/main.py --theme "$THEME" --style "$STYLE" --topic "$TOPIC"
+
+      - name: Simpan riwayat topik (agar tidak diulang)
+        continue-on-error: true
+        run: |
+          if [ ! -f data/history.json ]; then echo "Belum ada riwayat untuk disimpan."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/history.json
+          if git diff --cached --quiet; then echo "Riwayat tidak berubah."; exit 0; fi
+          git commit -m "riwayat: tambah topik video"
+          for i in 1 2 3; do
+            git pull --rebase origin "${{ github.ref_name }}" && git push origin "HEAD:${{ github.ref_name }}" && exit 0
+            sleep 5
+          done
+          echo "::warning::Riwayat topik gagal disimpan ke repo; video berikutnya bisa mengulang topik ini."
 
       - name: Posting aman (private/draf)
         if: ${{ inputs.post != 'tidak' }}
