@@ -11,8 +11,8 @@ on:
       style:
         description: "Style editing (auto = agen memilih satu dari 3)"
         type: choice
-        options: [auto, MYSTERY_VHS, MYSTERY_CONSPIRACY, MYSTERY_WAYANG]
-        default: auto
+        options: [MYSTERY_WAYANG, auto, MYSTERY_VHS, MYSTERY_CONSPIRACY]
+        default: MYSTERY_WAYANG
       post:
         description: "Unggah otomatis sebagai private/draf? (butuh secret platform)"
         type: choice
@@ -67,8 +67,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          IMAGE_ORDER: ${{ vars.IMAGE_ORDER }}
           THEME: ${{ inputs.theme || 'horor_nusantara' }}
-          STYLE: ${{ inputs.style || 'auto' }}
+          STYLE: ${{ inputs.style || 'MYSTERY_WAYANG' }}
           TOPIC: ${{ inputs.topic }}
         run: python src/main.py --theme "$THEME" --style "$STYLE" --topic "$TOPIC"
 
