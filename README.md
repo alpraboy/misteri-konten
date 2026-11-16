@@ -97,3 +97,11 @@ Workflow menyimpan riwayat itu kembali ke repo secara otomatis (langkah "Simpan 
 Topik yang diisi manual tetap dipakai, tetapi diberi peringatan di log bila mirip video lama.
 Untuk memasukkan video lama ke riwayat, tambahkan baris di `data/history.json`, contoh:
 `{"theme": "sejarah", "topic": "Segitiga Bermuda", "title": "Kapal yang Lenyap"}`
+
+
+## Urutan penyedia gambar & hemat pollen
+
+Urutan bawaan: Cloudflare > Gemini > Pollinations > Hugging Face (penyedia tanpa secret dilewati).
+Pollinations sengaja di belakang agar pollen-nya hemat. Untuk mengubah urutan, buat variabel repo `IMAGE_ORDER`
+(Settings > Secrets and variables > Actions > tab Variables), contoh: `cloudflare,pollinations`.
+Nama yang tidak ditulis berarti tidak dipakai. Style bawaan workflow sekarang `MYSTERY_WAYANG`.

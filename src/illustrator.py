@@ -237,11 +237,26 @@ def _fetch_hf(prompt, seed, dest_stem: Path, negative=""):
         return None
 
 
+# Urutan penyedia gambar. Pollinations sengaja di belakang agar pollen-nya (yang sulit diisi ulang) hemat;
+# yang jatah gratis hariannya paling longgar (Cloudflare) dipakai lebih dulu. Penyedia tanpa secret dilewati.
+# Ubah lewat env IMAGE_ORDER (variabel repo GitHub), mis. "pollinations,cloudflare". Nama yang tidak
+# ditulis berarti tidak dipakai sama sekali.
+DEFAULT_ORDER = "cloudflare,gemini,pollinations,huggingface"
+
+
+def provider_order():
+    names = [n.strip().lower() for n in (os.environ.get("IMAGE_ORDER", "").strip() or DEFAULT_ORDER).split(",")]
+    valid = [n for n in names if n in ("pollinations", "cloudflare", "gemini", "huggingface")]
+    if len(valid) != len([n for n in names if n]):
+        print(f"PERINGATAN: IMAGE_ORDER berisi nama tak dikenal ({names}); nama itu diabaikan.")
+    return valid or DEFAULT_ORDER.split(",")
+
+
 def _fetch_any(prompt, seed, dest_stem: Path, negative=""):
-    """Rantai penyedia gambar. Urutan: Pollinations > Cloudflare > Gemini > Hugging Face.
-    Penyedia yang tidak punya secret otomatis dilewati. Mengembalikan path atau None."""
-    for fetch in (_fetch, _fetch_cloudflare, _fetch_gemini, _fetch_hf):
-        path = fetch(prompt, seed, dest_stem, negative)
+    """Coba penyedia gambar sesuai provider_order(). Mengembalikan path atau None."""
+    fetchers = {"pollinations": _fetch, "cloudflare": _fetch_cloudflare, "gemini": _fetch_gemini, "huggingface": _fetch_hf}
+    for name in provider_order():
+        path = fetchers[name](prompt, seed, dest_stem, negative)
         if path:
             return path
     return None

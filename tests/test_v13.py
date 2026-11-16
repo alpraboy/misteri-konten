@@ -72,14 +72,16 @@ class GeminiFallback(unittest.TestCase):
             self.assertIsNotNone(illustrator._fetch_gemini("p", 1, Path(d) / "a"))
 
     def test_rantai_pollinations_gagal_lalu_gemini(self):
-        with patch.object(illustrator, "_fetch", lambda *a, **k: None), \
+        with patch.dict(os.environ, {"IMAGE_ORDER": "pollinations,gemini"}), \
+                patch.object(illustrator, "_fetch", lambda *a, **k: None), \
                 patch.object(illustrator, "_fetch_gemini", lambda *a, **k: Path("x.png")):
             self.assertEqual(illustrator._fetch_any("p", 1, Path("a")), Path("x.png"))
 
     def test_pollinations_berhasil_gemini_tidak_dipanggil(self):
         def boom(*a, **k):
             raise AssertionError("Gemini tidak boleh dipanggil")
-        with patch.object(illustrator, "_fetch", lambda *a, **k: Path("p.png")), patch.object(illustrator, "_fetch_gemini", boom):
+        with patch.dict(os.environ, {"IMAGE_ORDER": "pollinations,gemini"}), \
+                patch.object(illustrator, "_fetch", lambda *a, **k: Path("p.png")), patch.object(illustrator, "_fetch_gemini", boom):
             self.assertEqual(illustrator._fetch_any("p", 1, Path("a")), Path("p.png"))
 
 
@@ -142,10 +144,29 @@ class CloudflareHF(unittest.TestCase):
                 order.append(name)
                 return ret
             return f
-        with patch.object(illustrator, "_fetch", mk("poll")), patch.object(illustrator, "_fetch_cloudflare", mk("cf")), \
+        with patch.dict(os.environ, {"IMAGE_ORDER": ""}), \
+                patch.object(illustrator, "_fetch", mk("poll")), patch.object(illustrator, "_fetch_cloudflare", mk("cf")), \
                 patch.object(illustrator, "_fetch_gemini", mk("gem")), patch.object(illustrator, "_fetch_hf", mk("hf", Path("h.png"))):
             self.assertEqual(illustrator._fetch_any("p", 1, Path("a")), Path("h.png"))
-        self.assertEqual(order, ["poll", "cf", "gem", "hf"])
+        self.assertEqual(order, ["cf", "gem", "poll", "hf"])   # bawaan: pollen Pollinations dihemat
+
+    def test_urutan_bisa_diubah_dan_dibatasi(self):
+        order = []
+
+        def mk(name):
+            def f(*a, **k):
+                order.append(name)
+                return None
+            return f
+        with patch.dict(os.environ, {"IMAGE_ORDER": "Pollinations, cloudflare, ngawur"}), \
+                patch.object(illustrator, "_fetch", mk("poll")), patch.object(illustrator, "_fetch_cloudflare", mk("cf")), \
+                patch.object(illustrator, "_fetch_gemini", mk("gem")), patch.object(illustrator, "_fetch_hf", mk("hf")):
+            self.assertIsNone(illustrator._fetch_any("p", 1, Path("a")))
+        self.assertEqual(order, ["poll", "cf"])   # gemini & hf tidak ditulis -> tidak dipakai
+
+    def test_order_kosong_atau_salah_memakai_bawaan(self):
+        with patch.dict(os.environ, {"IMAGE_ORDER": "xyz"}):
+            self.assertEqual(illustrator.provider_order(), ["cloudflare", "gemini", "pollinations", "huggingface"])
 
 
 class FootageFallback(unittest.TestCase):
